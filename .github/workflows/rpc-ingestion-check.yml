@@ -52,11 +52,20 @@ jobs:
               response = requests.get(source.url, timeout=120)
               response.raise_for_status()
 
-              frame = parse_source_bytes(
-                  source,
-                  response.content,
-                  datetime.now(timezone.utc).isoformat(),
-              )
+              try:
+                  frame = parse_source_bytes(
+                      source,
+                      response.content,
+                      datetime.now(timezone.utc).isoformat(),
+                  )
+              except Exception:
+                  if source.file_type in {"xls", "xlsx"}:
+                      from src.ingestion.rpc import excel_rows
+                      rows = excel_rows(response.content)
+                      print(f"FY{fiscal_year} Excel rows:", len(rows))
+                      for row in rows[:60]:
+                          print(row)
+                  raise
 
               assert frame["state"].nunique() >= 40
               assert len(frame) >= 400
