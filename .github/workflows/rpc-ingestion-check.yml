@@ -111,13 +111,13 @@ jobs:
           PY
 
 
-      - name: Inspect FY2024 with Poppler fallback
+
+      - name: Inspect FY2024 OCR structure
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq poppler-utils
+          sudo apt-get install -y -qq poppler-utils tesseract-ocr
           python - <<'PY'
           import requests
-
           from src.ingestion.rpc import discover_rpc_sources
 
           source = next(
@@ -127,7 +127,6 @@ jobs:
           response = requests.get(source.url, timeout=120)
           response.raise_for_status()
           open("/tmp/fy2024.pdf", "wb").write(response.content)
-          print(source.url)
           PY
-          pdftotext -layout /tmp/fy2024.pdf /tmp/fy2024.txt
-          sed -n '1,120p' /tmp/fy2024.txt
+          pdftoppm -f 1 -singlefile -png -r 220 /tmp/fy2024.pdf /tmp/fy2024-page1
+          tesseract /tmp/fy2024-page1.png stdout --psm 6 2>/dev/null | sed -n '1,100p'
