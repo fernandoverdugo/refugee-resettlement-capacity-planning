@@ -110,18 +110,15 @@ jobs:
           )
           PY
 
-      - name: Inspect FY2024 PDF extraction
-        run: |
-          python - <<'PY'
-          from datetime import datetime, timezone
 
+      - name: Inspect FY2024 with Poppler fallback
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils
+          python - <<'PY'
           import requests
 
-          from src.ingestion.rpc import (
-              discover_rpc_sources,
-              pdf_rows,
-              parse_state_month_bytes,
-          )
+          from src.ingestion.rpc import discover_rpc_sources
 
           source = next(
               source for source in discover_rpc_sources()
@@ -129,18 +126,8 @@ jobs:
           )
           response = requests.get(source.url, timeout=120)
           response.raise_for_status()
-
-          try:
-              frame = parse_state_month_bytes(
-                  source,
-                  response.content,
-                  datetime.now(timezone.utc).isoformat(),
-              )
-              print(frame.head())
-          except Exception:
-              rows = pdf_rows(response.content)
-              print("FY2024 extracted rows:", len(rows))
-              for row in rows[:120]:
-                  print(row)
-              raise
+          open("/tmp/fy2024.pdf", "wb").write(response.content)
+          print(source.url)
           PY
+          pdftotext -layout /tmp/fy2024.pdf /tmp/fy2024.txt
+          sed -n '1,120p' /tmp/fy2024.txt
