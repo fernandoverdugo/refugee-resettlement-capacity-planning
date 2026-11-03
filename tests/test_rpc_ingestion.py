@@ -70,7 +70,7 @@ def test_pdf_rows_sum_nationality_rows_by_state():
 
     texas = frame[frame["state"] == "Texas"]
     assert texas["arrivals"].sum() == 60
-    assert set(texas["arrivals"]) == {10, 20, 30}
+    assert set(texas["arrivals"]) == {0, 10, 20, 30}
 
     utah = frame[frame["state"] == "Utah"]
     assert utah["arrivals"].sum() == 3
