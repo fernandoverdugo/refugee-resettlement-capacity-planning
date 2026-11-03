@@ -441,35 +441,48 @@ def parse_source_bytes(
     return parse_state_month_bytes(source, content, retrieved_at_utc)
 
 
-def build_state_month_panel(
+def build_rpc_panels(
     sources: list[RPCSource],
     raw_dir: Path,
     manifest_path: Path,
-    output_path: Path,
-) -> pd.DataFrame:
+    monthly_output_path: Path,
+    annual_output_path: Path,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     manifest: list[dict] = []
-    frames: list[pd.DataFrame] = []
+    monthly_frames: list[pd.DataFrame] = []
+    annual_frames: list[pd.DataFrame] = []
     client = requests.Session()
 
     for source in sources:
         metadata = download_source(source, raw_dir, session=client)
         manifest.append(metadata)
         content = Path(metadata["local_path"]).read_bytes()
-        frames.append(
-            parse_source_bytes(
-                source,
-                content,
-                metadata["retrieved_at_utc"],
-            )
+        retrieved_at = metadata["retrieved_at_utc"]
+
+        annual_frames.append(
+            parse_state_fiscal_year_bytes(source, content, retrieved_at)
         )
 
-    panel = pd.concat(frames, ignore_index=True)
-    panel = panel.sort_values(["state", "date"]).reset_index(drop=True)
+        if source.file_type == "pdf":
+            monthly_frames.append(
+                parse_state_month_bytes(source, content, retrieved_at)
+            )
+
+    annual_panel = pd.concat(annual_frames, ignore_index=True)
+    annual_panel = annual_panel.sort_values(["fiscal_year", "state"]).reset_index(
+        drop=True
+    )
+
+    monthly_panel = pd.concat(monthly_frames, ignore_index=True)
+    monthly_panel = monthly_panel.sort_values(["state", "date"]).reset_index(drop=True)
 
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    panel.to_csv(output_path, index=False)
+    monthly_output_path.parent.mkdir(parents=True, exist_ok=True)
+    monthly_panel.to_csv(monthly_output_path, index=False)
 
-    return panel
+    annual_output_path.parent.mkdir(parents=True, exist_ok=True)
+    annual_panel.to_csv(annual_output_path, index=False)
+
+    return monthly_panel, annual_panel
