@@ -24,7 +24,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r requirements.txt
       - run: python -m pytest -q
-      - name: Validate source discovery and FY2025 parsing
+      - name: Validate source discovery and representative source formats
         run: |
           python - <<'PY'
           from datetime import datetime, timezone
@@ -35,39 +35,51 @@ jobs:
 
           sources = discover_rpc_sources()
           years = [source.fiscal_year for source in sources]
+
           assert min(years) <= 2012
           assert 2025 in years
+          assert 2019 in years
+          assert 2018 in years
 
-          source = next(source for source in sources if source.fiscal_year == 2025)
-          response = requests.get(source.url, timeout=120)
-          response.raise_for_status()
+          results = {}
 
-          try:
+          for fiscal_year in (2025, 2019, 2018):
+              source = next(
+                  source for source in sources
+                  if source.fiscal_year == fiscal_year
+              )
+
+              response = requests.get(source.url, timeout=120)
+              response.raise_for_status()
+
               frame = parse_source_bytes(
                   source,
                   response.content,
                   datetime.now(timezone.utc).isoformat(),
               )
-          except Exception:
-              from src.ingestion.rpc import pdf_rows
-              rows = pdf_rows(response.content)
-              print("Extracted row count:", len(rows))
-              for row in rows[:80]:
-                  print(row)
-              raise
 
-          assert frame["state"].nunique() >= 40
-          assert len(frame) >= 400
-          assert frame["arrivals"].sum() > 0
-          assert "Texas" in set(frame["state"])
+              assert frame["state"].nunique() >= 40
+              assert len(frame) >= 400
+              assert frame["arrivals"].sum() > 0
+              assert "Texas" in set(frame["state"])
+
+              results[fiscal_year] = {
+                  "file_type": source.file_type,
+                  "rows": len(frame),
+                  "states": int(frame["state"].nunique()),
+                  "arrivals": int(frame["arrivals"].sum()),
+              }
+
+          assert results[2025]["file_type"] == "pdf"
+          assert results[2019]["file_type"] == "xlsx"
+          assert results[2018]["file_type"] == "xls"
 
           print(
               {
                   "sources": len(sources),
+                  "source_years": [min(years), max(years)],
                   "file_types": sorted({source.file_type for source in sources}),
-                  "fy2025_rows": len(frame),
-                  "fy2025_states": frame["state"].nunique(),
-                  "fy2025_arrivals": int(frame["arrivals"].sum()),
+                  "representative_results": results,
               }
           )
           PY
