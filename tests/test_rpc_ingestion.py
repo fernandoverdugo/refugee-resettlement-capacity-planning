@@ -1,6 +1,7 @@
 from src.ingestion.rpc import (
     RPCSource,
     fiscal_year_for_month,
+    excel_rows_to_state_fiscal_year,
     pdf_rows_to_state_month,
     rows_to_state_month,
 )
@@ -94,3 +95,26 @@ def test_pdf_rows_emit_zero_months_and_ignore_footer_values():
     assert len(frame) == 12
     assert frame["arrivals"].sum() == 4
     assert frame.loc[frame["calendar_month"] == 11, "arrivals"].iloc[0] == 0
+
+
+def test_excel_rows_to_state_fiscal_year():
+    rows = [
+        ["Placement State", None, None, "Cumulative"],
+        [None, "Nationality", "FY 2019", "Total"],
+        ["Texas", None, 2456, 2456],
+        [None, "Afghanistan", 100, 100],
+        ["Utah", None, 463, 463],
+        [None, "Syria", 10, 10],
+    ]
+
+    frame = excel_rows_to_state_fiscal_year(
+        rows=rows,
+        fiscal_year=2019,
+        source_url="https://example.test/report.xlsx",
+        source_file="report.xlsx",
+        retrieved_at_utc="2026-11-03T00:00:00+00:00",
+    )
+
+    assert len(frame) == 2
+    assert frame.loc[frame["state"] == "Texas", "arrivals"].iloc[0] == 2456
+    assert frame.loc[frame["state"] == "Utah", "arrivals"].iloc[0] == 463
