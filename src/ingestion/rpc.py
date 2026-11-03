@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urljoin
 
+import numpy as np
 import pandas as pd
 import pdfplumber
 import fitz
