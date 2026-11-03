@@ -45,6 +45,11 @@ US_STATES = [
 ]
 STATE_PREFIXES = sorted(US_STATES, key=len, reverse=True)
 
+RPC_SOURCE_URL_OVERRIDES = {
+    2024: "https://www.rpc.state.gov/documents/FY%202024%20Arrivals%20by%20State%20and%20Nationality%20as%20of%2030%20Sep%202024.pdf",
+}
+
+
 
 @dataclass(frozen=True)
 class RPCSource:
@@ -100,6 +105,17 @@ def discover_rpc_sources(
         )
 
     unique = {source.fiscal_year: source for source in sources}
+
+    for fiscal_year, url in RPC_SOURCE_URL_OVERRIDES.items():
+        if fiscal_year in unique:
+            filename = Path(url.split("?", 1)[0]).name
+            unique[fiscal_year] = RPCSource(
+                fiscal_year=fiscal_year,
+                url=url,
+                filename=filename,
+                file_type=Path(filename).suffix.lower().lstrip("."),
+            )
+
     return [unique[year] for year in sorted(unique)]
 
 
