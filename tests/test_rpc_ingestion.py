@@ -118,3 +118,10 @@ def test_excel_rows_to_state_fiscal_year():
     assert len(frame) == 2
     assert frame.loc[frame["state"] == "Texas", "arrivals"].iloc[0] == 2456
     assert frame.loc[frame["state"] == "Utah", "arrivals"].iloc[0] == 463
+
+
+def test_normalize_ocr_number_common_confusions():
+    assert normalize_ocr_number("1s") == 15
+    assert normalize_ocr_number("S") == 5
+    assert normalize_ocr_number("1,274") == 1274
+    assert normalize_ocr_number("") is None
