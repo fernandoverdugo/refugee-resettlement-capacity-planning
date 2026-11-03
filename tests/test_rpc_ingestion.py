@@ -74,3 +74,23 @@ def test_pdf_rows_sum_nationality_rows_by_state():
 
     utah = frame[frame["state"] == "Utah"]
     assert utah["arrivals"].sum() == 3
+
+
+def test_pdf_rows_emit_zero_months_and_ignore_footer_values():
+    rows = [
+        ["Actual Destination", "PA Nationality", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Grand Total"],
+        ["Texas Afghanistan", "Afghanistan", "4", "", "", "", "", "", "", "", "", "", "", "", "4"],
+        ["Based on source notes", None, "999", "999", "999", "999", "", "", "", "", "", "", "", "", "3996"],
+    ]
+
+    frame = pdf_rows_to_state_month(
+        rows=rows,
+        fiscal_year=2025,
+        source_url="https://example.test/report.pdf",
+        source_file="report.pdf",
+        retrieved_at_utc="2026-11-03T00:00:00+00:00",
+    )
+
+    assert len(frame) == 12
+    assert frame["arrivals"].sum() == 4
+    assert frame.loc[frame["calendar_month"] == 11, "arrivals"].iloc[0] == 0
