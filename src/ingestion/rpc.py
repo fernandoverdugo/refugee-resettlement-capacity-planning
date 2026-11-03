@@ -326,15 +326,100 @@ def pdf_rows(content: bytes) -> list[list]:
     return rows
 
 
-def parse_source_bytes(
+
+def excel_rows_to_state_fiscal_year(
+    rows: list[list],
+    fiscal_year: int,
+    source_url: str,
+    source_file: str,
+    retrieved_at_utc: str,
+) -> pd.DataFrame:
+    output = []
+
+    for row in rows:
+        normalized = [normalize_cell(value) for value in row]
+        if not normalized:
+            continue
+
+        state = state_from_pdf_cell(normalized[0])
+        if not state:
+            continue
+
+        numeric_values = []
+        for value in normalized[1:]:
+            cleaned = value.replace(",", "").strip()
+            if re.fullmatch(r"-?\d+(?:\.0+)?", cleaned):
+                numeric_values.append(int(float(cleaned)))
+
+        if not numeric_values:
+            continue
+
+        output.append(
+            {
+                "state": state,
+                "fiscal_year": fiscal_year,
+                "arrivals": numeric_values[-1],
+                "source_report": source_file,
+                "source_url": source_url,
+                "retrieved_at_utc": retrieved_at_utc,
+            }
+        )
+
+    frame = pd.DataFrame(output)
+    if frame.empty:
+        raise ValueError(f"No annual state totals parsed for FY{fiscal_year}")
+
+    return (
+        frame.drop_duplicates(subset=["state", "fiscal_year"], keep="last")
+        .sort_values(["fiscal_year", "state"])
+        .reset_index(drop=True)
+    )
+
+
+def state_fiscal_year_from_monthly(frame: pd.DataFrame) -> pd.DataFrame:
+    metadata_columns = [
+        "state",
+        "fiscal_year",
+        "source_report",
+        "source_url",
+        "retrieved_at_utc",
+    ]
+    return (
+        frame.groupby(metadata_columns, as_index=False, dropna=False)["arrivals"]
+        .sum()
+        .sort_values(["fiscal_year", "state"])
+        .reset_index(drop=True)
+    )
+
+
+def parse_state_month_bytes(
+    source: RPCSource,
+    content: bytes,
+    retrieved_at_utc: str,
+) -> pd.DataFrame:
+    if source.file_type != "pdf":
+        raise ValueError(
+            f"Monthly state detail is not available in archived {source.file_type} "
+            f"source for FY{source.fiscal_year}"
+        )
+
+    return pdf_rows_to_state_month(
+        rows=pdf_rows(content),
+        fiscal_year=source.fiscal_year,
+        source_url=source.url,
+        source_file=source.filename,
+        retrieved_at_utc=retrieved_at_utc,
+    )
+
+
+def parse_state_fiscal_year_bytes(
     source: RPCSource,
     content: bytes,
     retrieved_at_utc: str,
 ) -> pd.DataFrame:
     if source.file_type in {"xls", "xlsx"}:
-        rows = excel_rows(content)
-        return rows_to_state_month(
-            rows=rows,
+        return excel_rows_to_state_fiscal_year(
+            rows=excel_rows(content),
             fiscal_year=source.fiscal_year,
             source_url=source.url,
             source_file=source.filename,
@@ -342,16 +427,18 @@ def parse_source_bytes(
         )
 
     if source.file_type == "pdf":
-        rows = pdf_rows(content)
-        return pdf_rows_to_state_month(
-            rows=rows,
-            fiscal_year=source.fiscal_year,
-            source_url=source.url,
-            source_file=source.filename,
-            retrieved_at_utc=retrieved_at_utc,
-        )
+        monthly = parse_state_month_bytes(source, content, retrieved_at_utc)
+        return state_fiscal_year_from_monthly(monthly)
 
     raise ValueError(f"Unsupported RPC source type: {source.file_type}")
+
+
+def parse_source_bytes(
+    source: RPCSource,
+    content: bytes,
+    retrieved_at_utc: str,
+) -> pd.DataFrame:
+    return parse_state_month_bytes(source, content, retrieved_at_utc)
 
 
 def build_state_month_panel(
