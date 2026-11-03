@@ -1,6 +1,7 @@
 from src.ingestion.rpc import (
     RPCSource,
     fiscal_year_for_month,
+    pdf_rows_to_state_month,
     rows_to_state_month,
 )
 
@@ -49,3 +50,27 @@ def test_rpc_source_shape():
     )
     assert source.fiscal_year == 2025
     assert source.file_type == "pdf"
+
+
+def test_pdf_rows_sum_nationality_rows_by_state():
+    rows = [
+        ["Actual Destination", "PA Nationality", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Grand Total"],
+        ["Texas Afghanistan\nBurma", "Afghanistan", "4", "5", "6", "", "", "", "", "", "", "", "", "", "15"],
+        [None, None, "6", "15", "24", "", "", "", "", "", "", "", "", "", "45"],
+        ["Utah Syria", "Syria", "1", "", "2", "", "", "", "", "", "", "", "", "", "3"],
+    ]
+
+    frame = pdf_rows_to_state_month(
+        rows=rows,
+        fiscal_year=2025,
+        source_url="https://example.test/report.pdf",
+        source_file="report.pdf",
+        retrieved_at_utc="2026-11-03T00:00:00+00:00",
+    )
+
+    texas = frame[frame["state"] == "Texas"]
+    assert texas["arrivals"].sum() == 60
+    assert set(texas["arrivals"]) == {10, 20, 30}
+
+    utah = frame[frame["state"] == "Utah"]
+    assert utah["arrivals"].sum() == 3
