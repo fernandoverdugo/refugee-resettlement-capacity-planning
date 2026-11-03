@@ -1,0 +1,65 @@
+name: RPC ingestion check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/ingestion/rpc.py"
+      - "scripts/fetch_rpc_arrivals.py"
+      - "tests/test_rpc_ingestion.py"
+      - "requirements.txt"
+      - ".github/workflows/rpc-ingestion-check.yml"
+  workflow_dispatch:
+
+jobs:
+  rpc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q
+      - name: Validate source discovery and FY2025 parsing
+        run: |
+          python - <<'PY'
+          from datetime import datetime, timezone
+
+          import requests
+
+          from src.ingestion.rpc import discover_rpc_sources, parse_source_bytes
+
+          sources = discover_rpc_sources()
+          years = [source.fiscal_year for source in sources]
+          assert min(years) <= 2012
+          assert 2025 in years
+
+          source = next(source for source in sources if source.fiscal_year == 2025)
+          response = requests.get(source.url, timeout=120)
+          response.raise_for_status()
+
+          frame = parse_source_bytes(
+              source,
+              response.content,
+              datetime.now(timezone.utc).isoformat(),
+          )
+
+          assert frame["state"].nunique() >= 40
+          assert len(frame) >= 400
+          assert frame["arrivals"].sum() > 0
+          assert "Texas" in set(frame["state"])
+
+          print(
+              {
+                  "sources": len(sources),
+                  "file_types": sorted({source.file_type for source in sources}),
+                  "fy2025_rows": len(frame),
+                  "fy2025_states": frame["state"].nunique(),
+                  "fy2025_arrivals": int(frame["arrivals"].sum()),
+              }
+          )
+          PY
