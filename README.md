@@ -19,15 +19,19 @@ The goal is not to prescribe refugee placement or make individual-level decision
 
 ### Refugee Processing Center
 
-The U.S. Department of State Refugee Processing Center publishes refugee-arrival reports by state, nationality, and month. Historical state-and-nationality reports are available from FY2012 onward.
+The U.S. Department of State Refugee Processing Center publishes refugee-arrival reports by state and nationality from FY2012 onward. The archived source format changes over time:
 
-Primary analytical grain:
+- **FY2012–FY2020:** legacy Excel files provide state-level fiscal-year totals.
+- **FY2021–present:** PDF reports contain monthly state-level detail that can be normalized into a complete state-month panel.
+
+The ingestion layer therefore produces two analytical datasets:
 
 ```text
-state × calendar month
+state × fiscal year   (FY2012–present)
+state × calendar month (FY2021–present)
 ```
 
-Nationality-level fields will be retained where available for descriptive analysis, but the first forecasting models will target total monthly arrivals by state.
+The monthly panel is the primary forecasting dataset. The longer annual panel is retained for historical trend analysis, capacity context, and scenario design.
 
 ### U.S. Census Bureau American Community Survey
 
@@ -142,9 +146,9 @@ tests/                automated validation
 
 ## Status
 
-**Phase 1 — Data engineering foundation**
+**Phase 1 — Refugee Processing Center ingestion**
 
-The repository is being initialized with source documentation, configuration, tests, and reproducible ingestion scaffolding.
+The ingestion foundation now discovers the official RPC archive, handles legacy XLS/XLSX and modern PDF source formats, preserves source provenance and checksums, and normalizes the reports into separate annual and monthly state-level panels. Live-source integration tests validate representative files from each source era.
 
 ## Technologies
 
