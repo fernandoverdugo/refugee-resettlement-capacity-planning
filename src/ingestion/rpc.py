@@ -32,6 +32,19 @@ MONTH_NUMBER = {
     "Sep": 9,
 }
 
+US_STATES = [
+    "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
+    "Connecticut", "Delaware", "District of Columbia", "Florida", "Georgia",
+    "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky",
+    "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
+    "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire",
+    "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota",
+    "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island",
+    "South Carolina", "South Dakota", "Tennessee", "Texas", "Utah", "Vermont",
+    "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming",
+]
+STATE_PREFIXES = sorted(US_STATES, key=len, reverse=True)
+
 
 @dataclass(frozen=True)
 class RPCSource:
@@ -218,6 +231,77 @@ def rows_to_state_month(
     ).sort_values(["state", "date"]).reset_index(drop=True)
 
 
+
+def state_from_pdf_cell(value) -> str | None:
+    text = normalize_cell(value)
+    compact = text.replace("\n", " ")
+    for state in STATE_PREFIXES:
+        if compact == state or compact.startswith(state + " "):
+            return state
+    return None
+
+
+def pdf_rows_to_state_month(
+    rows: list[list],
+    fiscal_year: int,
+    source_url: str,
+    source_file: str,
+    retrieved_at_utc: str,
+) -> pd.DataFrame:
+    totals: dict[tuple[str, str], int] = {}
+    current_state: str | None = None
+
+    for row in rows:
+        normalized = [normalize_cell(value) for value in row]
+        if len(normalized) < 14:
+            continue
+
+        detected_state = state_from_pdf_cell(normalized[0] if normalized else "")
+        if detected_state:
+            current_state = detected_state
+
+        if current_state is None:
+            continue
+
+        for offset, month in enumerate(MONTHS, start=2):
+            if offset >= len(normalized):
+                continue
+
+            raw_value = normalized[offset].replace(",", "").strip()
+            if raw_value in {"", "-", "—"}:
+                continue
+
+            if not re.fullmatch(r"-?\d+(?:\.0+)?", raw_value):
+                continue
+
+            arrivals = int(float(raw_value))
+            key = (current_state, month)
+            totals[key] = totals.get(key, 0) + arrivals
+
+    output = []
+    for (state, month), arrivals in sorted(totals.items()):
+        calendar_year = fiscal_year_for_month(fiscal_year, month)
+        output.append(
+            {
+                "state": state,
+                "date": f"{calendar_year:04d}-{MONTH_NUMBER[month]:02d}-01",
+                "calendar_year": calendar_year,
+                "calendar_month": MONTH_NUMBER[month],
+                "fiscal_year": fiscal_year,
+                "arrivals": arrivals,
+                "source_report": source_file,
+                "source_url": source_url,
+                "retrieved_at_utc": retrieved_at_utc,
+            }
+        )
+
+    frame = pd.DataFrame(output)
+    if frame.empty:
+        raise ValueError(f"No PDF state-month arrivals parsed for FY{fiscal_year}")
+
+    return frame.sort_values(["state", "date"]).reset_index(drop=True)
+
+
 def excel_rows(content: bytes) -> list[list]:
     frame = pd.read_excel(io.BytesIO(content), header=None, dtype=object)
     return frame.where(pd.notna(frame), None).values.tolist()
@@ -240,18 +324,25 @@ def parse_source_bytes(
 ) -> pd.DataFrame:
     if source.file_type in {"xls", "xlsx"}:
         rows = excel_rows(content)
-    elif source.file_type == "pdf":
-        rows = pdf_rows(content)
-    else:
-        raise ValueError(f"Unsupported RPC source type: {source.file_type}")
+        return rows_to_state_month(
+            rows=rows,
+            fiscal_year=source.fiscal_year,
+            source_url=source.url,
+            source_file=source.filename,
+            retrieved_at_utc=retrieved_at_utc,
+        )
 
-    return rows_to_state_month(
-        rows=rows,
-        fiscal_year=source.fiscal_year,
-        source_url=source.url,
-        source_file=source.filename,
-        retrieved_at_utc=retrieved_at_utc,
-    )
+    if source.file_type == "pdf":
+        rows = pdf_rows(content)
+        return pdf_rows_to_state_month(
+            rows=rows,
+            fiscal_year=source.fiscal_year,
+            source_url=source.url,
+            source_file=source.filename,
+            retrieved_at_utc=retrieved_at_utc,
+        )
+
+    raise ValueError(f"Unsupported RPC source type: {source.file_type}")
 
 
 def build_state_month_panel(
