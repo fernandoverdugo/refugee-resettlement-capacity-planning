@@ -10,19 +10,24 @@ https://www.rpc.state.gov/admissions-and-arrivals/
 **Historical reports:**  
 https://www.rpc.state.gov/archives/
 
-The Refugee Processing Center publishes current fiscal-year reports and historical refugee-arrival reports. The historical archive includes **Refugee Arrivals by State and Nationality** reports for FY2012 onward. These reports provide arrivals by state of resettlement, primary applicant nationality, and month of admission.
+The Refugee Processing Center publishes current fiscal-year reports and historical refugee-arrival reports. The historical archive includes **Refugee Arrivals by State and Nationality** reports for FY2012 onward.
+
+A source audit identified an important format difference: archived FY2012–FY2020 Excel workbooks expose state-level fiscal-year totals, while FY2021 and later PDF reports provide usable monthly state detail. The project preserves that distinction rather than interpolating monthly values for the legacy years.
 
 Current-year reports are periodically reconciled, so historical values may change after initial publication. The ingestion pipeline should therefore preserve retrieval dates and source snapshots rather than assuming previously downloaded reports are immutable.
 
 ### Planned use
 
-The first forecasting dataset will aggregate the source reports to:
+The ingestion pipeline creates two normalized outputs:
 
 ```text
-state × calendar month
+data/processed/rpc_state_fiscal_year.csv
+data/processed/rpc_state_month.csv
 ```
 
-Planned fields include:
+The annual panel spans FY2012 onward. The monthly panel begins in FY2021, when the archived RPC source files provide month-level state detail.
+
+Monthly-panel fields include:
 
 - state
 - calendar year
@@ -30,7 +35,17 @@ Planned fields include:
 - fiscal year
 - monthly refugee arrivals
 - source report
-- source retrieval date
+- source URL
+- source retrieval timestamp
+
+Annual-panel fields include:
+
+- state
+- fiscal year
+- annual refugee arrivals
+- source report
+- source URL
+- source retrieval timestamp
 
 Nationality will be retained in a more detailed normalized table where source structure permits.
 
