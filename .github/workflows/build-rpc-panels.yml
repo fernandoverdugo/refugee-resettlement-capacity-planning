@@ -1,0 +1,97 @@
+name: Build RPC analytical panels
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/ingestion/**"
+      - "scripts/fetch_rpc_arrivals.py"
+      - "scripts/profile_rpc_panels.py"
+      - "tests/test_rpc_ingestion.py"
+      - "tests/test_rpc_profiling.py"
+      - "requirements.txt"
+      - ".github/workflows/build-rpc-panels.yml"
+
+concurrency:
+  group: build-rpc-panels-main
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q
+
+      - name: Build full RPC panels
+        run: python -m scripts.fetch_rpc_arrivals
+
+      - name: Validate and profile panels
+        run: python -m scripts.profile_rpc_panels
+
+      - name: Verify source manifest and outputs
+        run: |
+          python - <<'PY'
+          import json
+          import pandas as pd
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("data/raw/rpc_source_manifest.json").read_text()
+          )
+          annual = pd.read_csv("data/processed/rpc_state_fiscal_year.csv")
+          monthly = pd.read_csv("data/processed/rpc_state_month.csv")
+          summary = json.loads(
+              Path("analysis/rpc_ingestion_summary.json").read_text()
+          )
+
+          years = sorted(item["fiscal_year"] for item in manifest)
+
+          assert years[0] <= 2012
+          assert len(years) == len(set(years))
+          assert annual["fiscal_year"].min() == years[0]
+          assert annual["fiscal_year"].max() == years[-1]
+          assert monthly["fiscal_year"].min() >= 2021
+          assert monthly["fiscal_year"].max() == years[-1]
+          assert summary["annual_panel"]["rows"] == len(annual)
+          assert summary["monthly_panel"]["rows"] == len(monthly)
+
+          print(
+              {
+                  "source_years": [years[0], years[-1]],
+                  "sources": len(manifest),
+                  "annual_rows": len(annual),
+                  "monthly_rows": len(monthly),
+              }
+          )
+          PY
+
+      - name: Preserve validated analytical outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add             data/processed/rpc_state_fiscal_year.csv             data/processed/rpc_state_month.csv             analysis/rpc_ingestion_summary.json             analysis/rpc_monthly_state_profile.csv             analysis/rpc_month_profile.csv             analysis/rpc_annual_totals.csv
+
+          if git diff --cached --quiet; then
+            echo "No analytical output changes."
+            exit 0
+          fi
+
+          git commit -m "Build validated RPC analytical panels"
+          git pull --rebase origin main
+          git push
