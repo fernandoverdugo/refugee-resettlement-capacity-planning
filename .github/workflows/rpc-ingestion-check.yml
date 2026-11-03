@@ -42,11 +42,19 @@ jobs:
           response = requests.get(source.url, timeout=120)
           response.raise_for_status()
 
-          frame = parse_source_bytes(
-              source,
-              response.content,
-              datetime.now(timezone.utc).isoformat(),
-          )
+          try:
+              frame = parse_source_bytes(
+                  source,
+                  response.content,
+                  datetime.now(timezone.utc).isoformat(),
+              )
+          except Exception:
+              from src.ingestion.rpc import pdf_rows
+              rows = pdf_rows(response.content)
+              print("Extracted row count:", len(rows))
+              for row in rows[:80]:
+                  print(row)
+              raise
 
           assert frame["state"].nunique() >= 40
           assert len(frame) >= 400
