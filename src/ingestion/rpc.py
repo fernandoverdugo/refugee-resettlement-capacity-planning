@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import re
+import shutil
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +12,9 @@ from urllib.parse import urljoin
 
 import pandas as pd
 import pdfplumber
+import fitz
+import pytesseract
+from PIL import Image
 import requests
 from bs4 import BeautifulSoup
 
@@ -327,6 +331,193 @@ def pdf_rows_to_state_month(
     return frame.sort_values(["state", "date"]).reset_index(drop=True)
 
 
+
+OCR_MONTH_TOTALS_2024 = {
+    "Oct": 7361,
+    "Nov": 7468,
+    "Dec": 6968,
+    "Jan": 9198,
+    "Feb": 10251,
+    "Mar": 7439,
+    "Apr": 6388,
+    "May": 7477,
+    "Jun": 5761,
+    "Jul": 6458,
+    "Aug": 9522,
+    "Sep": 15743,
+}
+
+
+def normalize_ocr_number(value: str) -> int | None:
+    cleaned = normalize_cell(value).replace(",", "")
+    cleaned = cleaned.strip(" .:;()[]{}")
+    if not cleaned:
+        return None
+
+    substitutions = str.maketrans(
+        {
+            "O": "0",
+            "o": "0",
+            "I": "1",
+            "l": "1",
+            "|": "1",
+            "S": "5",
+            "s": "5",
+        }
+    )
+    candidate = cleaned.translate(substitutions)
+    candidate = re.sub(r"[^0-9-]", "", candidate)
+
+    if not candidate or candidate == "-":
+        return None
+
+    try:
+        return int(candidate)
+    except ValueError:
+        return None
+
+
+def ocr_pdf_to_state_month(
+    content: bytes,
+    fiscal_year: int,
+    source_url: str,
+    source_file: str,
+    retrieved_at_utc: str,
+) -> pd.DataFrame:
+    if shutil.which("tesseract") is None:
+        raise RuntimeError(
+            "Tesseract is required for OCR fallback on malformed RPC PDFs."
+        )
+
+    document = fitz.open(stream=content, filetype="pdf")
+    totals: dict[tuple[str, str], int] = {}
+    detected_states: set[str] = set()
+    current_state: str | None = None
+
+    for page in document:
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(2.2, 2.2), alpha=False)
+        image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+        data = pytesseract.image_to_data(
+            image,
+            config="--psm 6",
+            output_type=pytesseract.Output.DATAFRAME,
+        )
+        data = data.dropna(subset=["text"]).copy()
+        data["text"] = data["text"].astype(str).str.strip()
+        data = data[data["text"] != ""]
+
+        month_centers: dict[str, float] = {}
+        for month in MONTHS:
+            candidates = data[
+                data["text"].str.lower().str.replace(".", "", regex=False)
+                == month.lower()
+            ]
+            if not candidates.empty:
+                row = candidates.iloc[0]
+                month_centers[month] = float(row["left"] + row["width"] / 2)
+
+        if len(month_centers) != 12:
+            continue
+
+        ordered_centers = [month_centers[month] for month in MONTHS]
+        spacing = float(np.median(np.diff(ordered_centers)))
+        state_boundary = ordered_centers[0] * 0.52
+
+        line_columns = ["block_num", "par_num", "line_num"]
+        for _, line in data.groupby(line_columns, sort=False):
+            line = line.sort_values("left")
+            words = line["text"].tolist()
+            text = " ".join(words)
+
+            if "Grand Total" in text or "Actual Destination" in text:
+                current_state = None
+                continue
+
+            left_words = line[
+                (line["left"] + line["width"] / 2) < ordered_centers[0]
+            ]
+            state_words = left_words[
+                (left_words["left"] + left_words["width"] / 2) < state_boundary
+            ]
+            state_text = " ".join(state_words["text"].tolist())
+            detected_state = state_from_pdf_cell(state_text)
+
+            if detected_state:
+                current_state = detected_state
+                detected_states.add(detected_state)
+            elif state_text and not any(
+                state_text.startswith(state) for state in STATE_PREFIXES
+            ):
+                # A non-state label in the state column starts a new non-data block.
+                if any(
+                    phrase in state_text.lower()
+                    for phrase in [
+                        "based on",
+                        "data provided",
+                        "refugee arrivals",
+                        "fiscal year",
+                    ]
+                ):
+                    current_state = None
+
+            if current_state is None:
+                continue
+
+            for _, token in line.iterrows():
+                center = float(token["left"] + token["width"] / 2)
+                nearest_index = int(np.argmin([abs(center - x) for x in ordered_centers]))
+                distance = abs(center - ordered_centers[nearest_index])
+
+                if distance > spacing * 0.43:
+                    continue
+
+                value = normalize_ocr_number(token["text"])
+                if value is None:
+                    continue
+
+                month = MONTHS[nearest_index]
+                key = (current_state, month)
+                totals[key] = totals.get(key, 0) + value
+
+    output = []
+    for state in sorted(detected_states):
+        for month in MONTHS:
+            calendar_year = fiscal_year_for_month(fiscal_year, month)
+            output.append(
+                {
+                    "state": state,
+                    "date": f"{calendar_year:04d}-{MONTH_NUMBER[month]:02d}-01",
+                    "calendar_year": calendar_year,
+                    "calendar_month": MONTH_NUMBER[month],
+                    "fiscal_year": fiscal_year,
+                    "arrivals": totals.get((state, month), 0),
+                    "source_report": source_file,
+                    "source_url": source_url,
+                    "retrieved_at_utc": retrieved_at_utc,
+                }
+            )
+
+    frame = pd.DataFrame(output)
+    if frame.empty:
+        raise ValueError(f"No OCR state-month arrivals parsed for FY{fiscal_year}")
+
+    if fiscal_year == 2024:
+        observed = (
+            frame.groupby("calendar_month")["arrivals"].sum().to_dict()
+        )
+        expected = {
+            MONTH_NUMBER[month]: value
+            for month, value in OCR_MONTH_TOTALS_2024.items()
+        }
+        if observed != expected:
+            raise ValueError(
+                f"FY2024 OCR monthly totals do not reconcile: "
+                f"observed={observed}, expected={expected}"
+            )
+
+    return frame.sort_values(["state", "date"]).reset_index(drop=True)
+
+
 def excel_rows(content: bytes) -> list[list]:
     frame = pd.read_excel(io.BytesIO(content), header=None, dtype=object)
     return frame.where(pd.notna(frame), None).values.tolist()
@@ -419,13 +610,22 @@ def parse_state_month_bytes(
             f"source for FY{source.fiscal_year}"
         )
 
-    return pdf_rows_to_state_month(
-        rows=pdf_rows(content),
-        fiscal_year=source.fiscal_year,
-        source_url=source.url,
-        source_file=source.filename,
-        retrieved_at_utc=retrieved_at_utc,
-    )
+    try:
+        return pdf_rows_to_state_month(
+            rows=pdf_rows(content),
+            fiscal_year=source.fiscal_year,
+            source_url=source.url,
+            source_file=source.filename,
+            retrieved_at_utc=retrieved_at_utc,
+        )
+    except ValueError:
+        return ocr_pdf_to_state_month(
+            content=content,
+            fiscal_year=source.fiscal_year,
+            source_url=source.url,
+            source_file=source.filename,
+            retrieved_at_utc=retrieved_at_utc,
+        )
 
 
 def parse_state_fiscal_year_bytes(
