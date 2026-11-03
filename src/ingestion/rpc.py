@@ -249,6 +249,7 @@ def pdf_rows_to_state_month(
     retrieved_at_utc: str,
 ) -> pd.DataFrame:
     totals: dict[tuple[str, str], int] = {}
+    detected_states: set[str] = set()
     current_state: str | None = None
 
     for row in rows:
@@ -256,9 +257,15 @@ def pdf_rows_to_state_month(
         if len(normalized) < 14:
             continue
 
-        detected_state = state_from_pdf_cell(normalized[0] if normalized else "")
-        if detected_state:
-            current_state = detected_state
+        first_cell = normalized[0] if normalized else ""
+        detected_state = state_from_pdf_cell(first_cell)
+
+        if first_cell:
+            if detected_state:
+                current_state = detected_state
+                detected_states.add(detected_state)
+            else:
+                current_state = None
 
         if current_state is None:
             continue
@@ -279,21 +286,23 @@ def pdf_rows_to_state_month(
             totals[key] = totals.get(key, 0) + arrivals
 
     output = []
-    for (state, month), arrivals in sorted(totals.items()):
-        calendar_year = fiscal_year_for_month(fiscal_year, month)
-        output.append(
-            {
-                "state": state,
-                "date": f"{calendar_year:04d}-{MONTH_NUMBER[month]:02d}-01",
-                "calendar_year": calendar_year,
-                "calendar_month": MONTH_NUMBER[month],
-                "fiscal_year": fiscal_year,
-                "arrivals": arrivals,
-                "source_report": source_file,
-                "source_url": source_url,
-                "retrieved_at_utc": retrieved_at_utc,
-            }
-        )
+    for state in sorted(detected_states):
+        for month in MONTHS:
+            arrivals = totals.get((state, month), 0)
+            calendar_year = fiscal_year_for_month(fiscal_year, month)
+            output.append(
+                {
+                    "state": state,
+                    "date": f"{calendar_year:04d}-{MONTH_NUMBER[month]:02d}-01",
+                    "calendar_year": calendar_year,
+                    "calendar_month": MONTH_NUMBER[month],
+                    "fiscal_year": fiscal_year,
+                    "arrivals": arrivals,
+                    "source_report": source_file,
+                    "source_url": source_url,
+                    "retrieved_at_utc": retrieved_at_utc,
+                }
+            )
 
     frame = pd.DataFrame(output)
     if frame.empty:
