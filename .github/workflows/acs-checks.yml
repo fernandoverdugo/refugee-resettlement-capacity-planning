@@ -1,0 +1,39 @@
+name: ACS capacity checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/ingestion/acs.py"
+      - "scripts/fetch_acs_capacity.py"
+      - "tests/test_acs_ingestion.py"
+      - "docs/ACS_CAPACITY.md"
+      - ".github/workflows/acs-checks.yml"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q
+      - name: Validate current ACS variable metadata
+        run: |
+          python - <<'PY'
+          from src.ingestion.acs import validate_variable_metadata
+
+          metadata = validate_variable_metadata(2024)
+          assert metadata["population"]["variable"] == "DP05_0001E"
+          assert metadata["poverty_rate"]["variable"] == "DP03_0128PE"
+          assert metadata["rental_vacancy_rate"]["variable"] == "DP04_0005E"
+          assert metadata["foreign_born_pct"]["variable"] == "DP02_0094PE"
+          print(metadata)
+          PY
