@@ -218,17 +218,19 @@ See `docs/CONSTRAINED_OPTIMIZATION.md` and `analysis/constrained_optimization_su
 
 A FastAPI backend now exposes health status, forecast benchmarks, scenario summaries, capacity results, optimization outputs, and a parameterized `POST /v1/plan` endpoint. The planning endpoint validates user assumptions and reuses the existing scenario and optimization modules rather than duplicating analytical logic.
 
+A lightweight interactive web interface is also served from the application root. Users can adjust demand, horizon, staffing, utilization, cost, budget, state ceiling, and minimum-coverage assumptions and immediately compare scenario demand, served demand, unmet demand, coverage, staffing use, and cost.
+
 Run locally with:
 
 ```bash
 uvicorn src.api.app:app --reload
 ```
 
-FastAPI provides interactive API documentation at `/docs`.
+Open the root page for the planning interface or `/docs` for FastAPI's interactive API documentation.
 
-See `docs/API.md` for endpoint definitions and request structure.
+See `docs/API.md` and `docs/APP.md` for endpoint definitions and interface behavior.
 
-The next milestone is the interactive front end that will let users change planning assumptions and compare scenario coverage, unmet demand, staffing use, and cost without working directly with code or JSON.
+The next milestone is deployment and presentation polish: containerize the application, add a production health check, and make the decision-support interface easy to launch from the portfolio.
 
 ## Technologies
 
