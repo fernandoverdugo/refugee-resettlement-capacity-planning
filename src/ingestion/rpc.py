@@ -979,6 +979,46 @@ def excel_rows_to_state_fiscal_year(
 
 
 
+
+def state_monthly_to_national_month(frame: pd.DataFrame) -> pd.DataFrame:
+    metadata = (
+        frame[
+            [
+                "date",
+                "calendar_year",
+                "calendar_month",
+                "fiscal_year",
+                "source_report",
+                "source_url",
+                "retrieved_at_utc",
+            ]
+        ]
+        .drop_duplicates(subset=["date", "fiscal_year"])
+        .set_index(["date", "fiscal_year"])
+    )
+
+    totals = (
+        frame.groupby(["date", "fiscal_year"], as_index=True)["arrivals"]
+        .sum()
+        .to_frame()
+        .join(metadata)
+        .reset_index()
+    )
+
+    return totals[
+        [
+            "date",
+            "calendar_year",
+            "calendar_month",
+            "fiscal_year",
+            "arrivals",
+            "source_report",
+            "source_url",
+            "retrieved_at_utc",
+        ]
+    ].sort_values("date").reset_index(drop=True)
+
+
 def pdf_rows_to_state_fiscal_year(
     rows: list[list],
     fiscal_year: int,
@@ -1298,6 +1338,22 @@ def build_rpc_panels(
                 monthly = parse_state_month_bytes(source, content, retrieved_at)
                 monthly_frames.append(monthly)
                 source_metadata["state_monthly_included"] = True
+
+                if not source_metadata["state_annual_included"]:
+                    annual_frames.append(state_fiscal_year_from_monthly(monthly))
+                    source_metadata["state_annual_included"] = True
+                    source_metadata["state_annual_note"] = (
+                        "Derived from fully reconciled state-month panel."
+                    )
+
+                if not source_metadata["national_monthly_included"]:
+                    national_monthly_frames.append(
+                        state_monthly_to_national_month(monthly)
+                    )
+                    source_metadata["national_monthly_included"] = True
+                    source_metadata["national_monthly_note"] = (
+                        "Derived from fully reconciled state-month panel."
+                    )
             else:
                 source_metadata["state_monthly_note"] = (
                     "State-month extraction for this PDF did not meet exact "
