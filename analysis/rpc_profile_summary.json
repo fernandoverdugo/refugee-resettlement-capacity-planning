@@ -1,0 +1,130 @@
+{
+  "annual_panel": {
+    "rows": 439,
+    "states": 51,
+    "first_fiscal_year": 2012,
+    "last_fiscal_year": 2020,
+    "total_arrivals": 471094,
+    "fiscal_year_totals": {
+      "2012": 58238,
+      "2013": 69923,
+      "2014": 69985,
+      "2015": 69933,
+      "2016": 84994,
+      "2017": 53716,
+      "2018": 22491,
+      "2019": 30000,
+      "2020": 11814
+    }
+  },
+  "monthly_panel": {
+    "rows": 612,
+    "states": 51,
+    "first_date": "2023-10-01",
+    "last_date": "2024-09-01",
+    "months": 12,
+    "total_arrivals": 100034,
+    "zero_observations": 31,
+    "zero_share": 0.05065359477124183,
+    "median_state_zero_share": 0.0,
+    "states_with_at_least_24_nonzero_months": 0,
+    "calendar_year_totals": {
+      "2023": 21797,
+      "2024": 78237
+    }
+  },
+  "national_monthly_panel": {
+    "rows": 48,
+    "first_date": "2020-10-01",
+    "last_date": "2025-09-01",
+    "fiscal_years": 4,
+    "total_arrivals": 134992
+  },
+  "coverage": {
+    "state_annual_fiscal_years": [
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020
+    ],
+    "state_monthly_fiscal_years": [
+      2024
+    ],
+    "national_monthly_fiscal_years": [
+      2021,
+      2022,
+      2023,
+      2025
+    ],
+    "state_level_pdf_gap": [
+      2021,
+      2022,
+      2023,
+      2025
+    ]
+  },
+  "diagnostics": {
+    "monthly_arrival_p50": 105.0,
+    "monthly_arrival_p75": 240.75,
+    "monthly_arrival_p90": 379.9,
+    "monthly_arrival_p95": 499.29999999999905,
+    "monthly_arrival_p99": 807.4499999999999,
+    "top_states_by_monthly_arrivals": [
+      {
+        "state": "Texas",
+        "total_arrivals": 9768,
+        "zero_share": 0.0
+      },
+      {
+        "state": "California",
+        "total_arrivals": 7597,
+        "zero_share": 0.0
+      },
+      {
+        "state": "New York",
+        "total_arrivals": 6234,
+        "zero_share": 0.0
+      },
+      {
+        "state": "Florida",
+        "total_arrivals": 4575,
+        "zero_share": 0.0
+      },
+      {
+        "state": "Pennsylvania",
+        "total_arrivals": 4446,
+        "zero_share": 0.0
+      },
+      {
+        "state": "Washington",
+        "total_arrivals": 4001,
+        "zero_share": 0.0
+      },
+      {
+        "state": "Illinois",
+        "total_arrivals": 3798,
+        "zero_share": 0.0
+      },
+      {
+        "state": "Arizona",
+        "total_arrivals": 3776,
+        "zero_share": 0.0
+      },
+      {
+        "state": "Ohio",
+        "total_arrivals": 3657,
+        "zero_share": 0.0
+      },
+      {
+        "state": "Michigan",
+        "total_arrivals": 3649,
+        "zero_share": 0.0
+      }
+    ]
+  }
+}
