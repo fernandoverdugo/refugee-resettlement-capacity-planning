@@ -59,6 +59,7 @@ jobs:
           )
           annual = pd.read_csv("data/processed/rpc_state_fiscal_year.csv")
           monthly = pd.read_csv("data/processed/rpc_state_month.csv")
+          national_monthly = pd.read_csv("data/processed/rpc_national_month.csv")
           summary = json.loads(
               Path("analysis/rpc_ingestion_summary.json").read_text()
           )
@@ -69,10 +70,13 @@ jobs:
           assert len(years) == len(set(years))
           assert annual["fiscal_year"].min() == years[0]
           assert annual["fiscal_year"].max() == years[-1]
-          assert monthly["fiscal_year"].min() >= 2021
+          assert monthly["fiscal_year"].min() >= 2024
           assert monthly["fiscal_year"].max() == years[-1]
+          assert national_monthly["fiscal_year"].min() <= 2021
+          assert national_monthly["fiscal_year"].max() == years[-1]
           assert summary["annual_panel"]["rows"] == len(annual)
           assert summary["monthly_panel"]["rows"] == len(monthly)
+          assert summary["national_monthly_panel"]["rows"] == len(national_monthly)
 
           print(
               {
@@ -80,6 +84,7 @@ jobs:
                   "sources": len(manifest),
                   "annual_rows": len(annual),
                   "monthly_rows": len(monthly),
+                  "national_monthly_rows": len(national_monthly),
               }
           )
           PY
@@ -89,7 +94,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add             data/processed/rpc_state_fiscal_year.csv             data/processed/rpc_state_month.csv             analysis/rpc_ingestion_summary.json             analysis/rpc_monthly_state_profile.csv             analysis/rpc_month_profile.csv             analysis/rpc_annual_totals.csv
+          git add             data/processed/rpc_state_fiscal_year.csv             data/processed/rpc_state_month.csv             data/processed/rpc_national_month.csv             analysis/rpc_ingestion_summary.json             analysis/rpc_monthly_state_profile.csv             analysis/rpc_month_profile.csv             analysis/rpc_annual_totals.csv
 
           if git diff --cached --quiet; then
             echo "No analytical output changes."
