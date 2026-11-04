@@ -1,0 +1,4 @@
+scenario,months,total_demand,served_demand,unmet_demand,allocated_fte_months,minimum_coverage,service_coverage_rate
+lower,6,579.0,579.0,0.0,22.705882352941178,1.0,1.0
+baseline,6,1158.0,1158.0,0.0,45.411764705882355,1.0,1.0
+higher,6,1737.0,1224.0,513.0,48.0,0.7046632124352331,0.7046632124352331
