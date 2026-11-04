@@ -6,6 +6,13 @@ from src.api.app import app
 client = TestClient(app)
 
 
+def test_web_app_endpoint():
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Refugee Resettlement Capacity Planner" in response.text
+
+
 def test_health_endpoint():
     response = client.get("/health")
 
