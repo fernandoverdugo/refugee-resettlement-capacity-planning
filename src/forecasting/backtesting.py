@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from statsmodels.tsa.holtwinters import SimpleExpSmoothing
 
 
 REQUIRED_COLUMNS = {"date", "arrivals"}
@@ -56,6 +57,22 @@ def seasonal_naive_forecast(
     )
 
 
+def simple_exponential_smoothing_forecast(
+    train: pd.Series,
+    horizon: int,
+) -> np.ndarray:
+    if horizon < 1:
+        raise ValueError("horizon must be at least 1")
+    if len(train) < 2:
+        raise ValueError("train must contain at least two observations")
+
+    fitted = SimpleExpSmoothing(
+        train.asfreq("MS"),
+        initialization_method="estimated",
+    ).fit(optimized=True)
+    return fitted.forecast(horizon).to_numpy(dtype=float)
+
+
 def rolling_origin_backtest(
     series: pd.Series,
     min_train: int = 24,
@@ -74,6 +91,9 @@ def rolling_origin_backtest(
         "naive": lambda train, h: naive_forecast(train, h),
         "seasonal_naive": lambda train, h: seasonal_naive_forecast(
             train, h, season_length
+        ),
+        "simple_exponential_smoothing": lambda train, h: (
+            simple_exponential_smoothing_forecast(train, h)
         ),
     }
 
