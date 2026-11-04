@@ -82,9 +82,11 @@ The first scenario engine is implemented with explicit lower (0.5×), baseline (
 ### Phase 4 — Resource optimization
 Translate forecast demand into resource-allocation recommendations using constrained mathematical optimization.
 
+The first optimization benchmark is now implemented. National scenario demand is distributed to states using validated FY2024 arrival shares, then a linear program allocates a fixed staffing pool using a max-min fairness objective that maximizes the minimum service-coverage rate across states.
+
 Example objective:
 
-> Minimize unmet forecast service demand subject to a fixed budget, minimum coverage requirements, staffing limits, and state-level capacity constraints.
+> Maximize the minimum state service-coverage rate subject to a fixed staffing budget, state demand limits, and total service capacity.
 
 ### Phase 5 — Decision-support application
 Build an interactive application where users can adjust planning assumptions and compare:
@@ -196,7 +198,15 @@ The demand scenario engine is operational and produces reproducible lower, basel
 
 Using the default assumption of 8 FTE, 30 cases per FTE per month, and 85% usable capacity, the system provides 204 cases of monthly capacity. Across the current six-month scenarios, lower and baseline demand are fully covered, while the higher-demand case produces 513 cases of unmet demand and a 70.5% coverage rate.
 
-The next step is constrained optimization: allocate limited service resources across planning units while respecting budget, staffing, and minimum-coverage constraints.
+**Phase 4 — Resource optimization: in progress**
+
+A state-level linear-programming benchmark is now operational. The current model uses FY2024 state arrival shares as a transparent planning distribution and allocates a fixed 8-FTE service pool across states.
+
+Lower and baseline scenarios achieve full coverage. In the higher-demand scenario, monthly demand of 289.5 exceeds the 204-case service ceiling, so the optimizer equalizes state coverage at approximately 70.5% rather than concentrating resources in a small number of states.
+
+See `docs/OPTIMIZATION.md`, `analysis/optimization_state_shares.csv`, and `analysis/optimization_summary.csv` for assumptions and results.
+
+The next optimization milestone is to introduce richer constraints such as state-specific staffing ceilings, budget costs, minimum coverage requirements, and contextual capacity indicators.
 
 ## Technologies
 
