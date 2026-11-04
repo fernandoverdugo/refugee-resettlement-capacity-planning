@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from src.forecasting.backtesting import (
+    gradient_boosting_forecast,
     naive_forecast,
     prepare_monthly_series,
     rolling_origin_backtest,
@@ -78,6 +79,20 @@ def test_sarima_returns_requested_horizon():
     assert np.isfinite(forecast).all()
 
 
+def test_gradient_boosting_returns_requested_horizon():
+    index = pd.date_range("2021-01-01", periods=36, freq="MS")
+    values = 100 + np.arange(36, dtype=float) + 10 * np.sin(
+        2 * np.pi * np.arange(36) / 12
+    )
+    series = pd.Series(values, index=index)
+
+    forecast = gradient_boosting_forecast(series, 3)
+
+    assert len(forecast) == 3
+    assert np.isfinite(forecast).all()
+    assert (forecast >= 0).all()
+
+
 def test_rolling_origin_backtest_uses_only_prior_observations():
     index = pd.date_range("2020-01-01", periods=30, freq="MS")
     series = pd.Series(np.arange(1, 31, dtype=float), index=index)
@@ -112,6 +127,7 @@ def test_summarize_backtest_returns_metrics_by_model_and_horizon():
         "seasonal_naive",
         "simple_exponential_smoothing",
         "sarima_110_100_12",
+        "gradient_boosting",
     }
     assert set(summary["horizon"]) == {1, 2, 3}
     assert (summary["n_forecasts"] > 0).all()
