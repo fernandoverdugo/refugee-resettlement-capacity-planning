@@ -94,7 +94,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add             data/processed/rpc_state_fiscal_year.csv             data/processed/rpc_state_month.csv             data/processed/rpc_national_month.csv             analysis/rpc_ingestion_summary.json             analysis/rpc_monthly_state_profile.csv             analysis/rpc_month_profile.csv             analysis/rpc_annual_totals.csv
+          git add             data/processed/rpc_state_fiscal_year.csv             data/processed/rpc_state_month.csv             data/processed/rpc_national_month.csv             data/raw/rpc_source_manifest.json             analysis/rpc_ingestion_summary.json             analysis/rpc_monthly_state_profile.csv             analysis/rpc_month_profile.csv             analysis/rpc_annual_totals.csv
 
           if git diff --cached --quiet; then
             echo "No analytical output changes."
