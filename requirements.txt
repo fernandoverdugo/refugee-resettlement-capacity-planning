@@ -11,3 +11,6 @@ xlrd>=2.0,<3
 pdfplumber>=0.11,<1
 pymupdf>=1.25,<2
 pytesseract>=0.3.13,<1
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+httpx>=0.28,<1
