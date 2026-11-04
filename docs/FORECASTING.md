@@ -38,6 +38,10 @@ The corresponding values from the most recent 12-month seasonal cycle are repeat
 
 A level-only exponential smoothing model is re-estimated at every forecast origin. It adapts to recent changes in the series without imposing a seasonal pattern or deterministic trend.
 
+### SARIMA
+
+The first seasonal autoregressive challenger is SARIMA(1,1,0)×(1,0,0,12). It combines first differencing, short-run autoregression, and a 12-month seasonal autoregressive term. The specification is intentionally compact because the available monthly history is short.
+
 These models provide increasingly flexible benchmarks while remaining interpretable. More complex models should only be retained if they demonstrate consistent out-of-sample improvement.
 
 ## Metrics
@@ -59,15 +63,18 @@ Using the FY2021–FY2025 national monthly panel with a 24-month minimum trainin
 | --- | ---: | ---: | ---: | ---: |
 | Naive | 1 month | 1,680 | 2,908 | 30.5% |
 | Simple exponential smoothing | 1 month | 1,927 | 3,108 | 35.0% |
+| SARIMA | 1 month | 1,931 | 3,146 | 35.1% |
 | Seasonal naive | 1 month | 4,238 | 5,415 | 77.0% |
 | Simple exponential smoothing | 2 months | 2,462 | 3,777 | 44.0% |
 | Naive | 2 months | 2,466 | 3,975 | 44.0% |
+| SARIMA | 2 months | 2,665 | 4,217 | 47.6% |
 | Seasonal naive | 2 months | 4,309 | 5,483 | 76.9% |
 | Naive | 3 months | 2,576 | 3,971 | 45.2% |
 | Simple exponential smoothing | 3 months | 2,646 | 3,912 | 46.4% |
+| SARIMA | 3 months | 2,765 | 4,134 | 48.5% |
 | Seasonal naive | 3 months | 4,418 | 5,563 | 77.5% |
 
-The naive model is the strongest overall benchmark. Simple exponential smoothing is nearly tied at the two-month horizon but does not consistently improve on the last-observation baseline. Seasonal naive performs substantially worse.
+The naive model remains the strongest overall benchmark. Simple exponential smoothing and SARIMA are close at the one-month horizon but do not consistently improve on the last-observation baseline. Seasonal naive performs substantially worse.
 
 This pattern is consistent with a series affected by large level shifts and abrupt policy-driven changes. The sharp decline in arrivals during FY2025 is especially difficult for models that rely on historical seasonal structure.
 
@@ -90,4 +97,4 @@ analysis/forecast_backtest_summary.csv
 
 ## Next modeling step
 
-The next candidates are SARIMA and lag-based gradient boosting, but they should be treated as challengers rather than assumed improvements. Given the observed structural breaks, the planning system should also support scenario-based forecasts that can override purely historical extrapolation when policy conditions change.
+The next challenger is lag-based gradient boosting using only information available at each forecast origin. Given the observed structural breaks, the planning system should also support scenario-based forecasts that can override purely historical extrapolation when policy conditions change.
