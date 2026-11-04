@@ -553,19 +553,20 @@ def ocr_pdf_total_rows_to_state_month(
             f"No checksum-valid OCR state totals parsed for FY{fiscal_year}"
         )
 
-    observed = frame.groupby("calendar_month")["arrivals"].sum().to_dict()
-    expected = {
-        MONTH_NUMBER[month]: value
-        for month, value in OCR_MONTH_TOTALS_2024.items()
-    }
+    if fiscal_year == 2024:
+        observed = frame.groupby("calendar_month")["arrivals"].sum().to_dict()
+        expected = {
+            MONTH_NUMBER[month]: value
+            for month, value in OCR_MONTH_TOTALS_2024.items()
+        }
 
-    if observed != expected:
-        missing_states = sorted(set(US_STATES) - set(frame["state"]))
-        raise ValueError(
-            "FY2024 checksum-valid state totals do not reconcile: "
-            f"states={frame['state'].nunique()}, missing={missing_states}, "
-            f"observed={observed}, expected={expected}"
-        )
+        if observed != expected:
+            missing_states = sorted(set(US_STATES) - set(frame["state"]))
+            raise ValueError(
+                "FY2024 checksum-valid state totals do not reconcile: "
+                f"states={frame['state'].nunique()}, missing={missing_states}, "
+                f"observed={observed}, expected={expected}"
+            )
 
     return frame.sort_values(["state", "date"]).reset_index(drop=True)
 
@@ -827,6 +828,16 @@ def parse_state_month_bytes(
             f"Monthly state detail is not available in archived {source.file_type} "
             f"source for FY{source.fiscal_year}"
         )
+
+    if source.fiscal_year in {2021, 2022, 2023, 2024}:
+        frame = ocr_pdf_total_rows_to_state_month(
+            content=content,
+            fiscal_year=source.fiscal_year,
+            source_url=source.url,
+            source_file=source.filename,
+            retrieved_at_utc=retrieved_at_utc,
+        )
+        return validate_pdf_year_total(frame, source.fiscal_year)
 
     rows = pdf_rows(content)
 
