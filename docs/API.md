@@ -30,6 +30,10 @@ FastAPI then provides interactive OpenAPI documentation at:
 
 Returns service status and API version.
 
+### `GET /v1/defaults`
+
+Returns application defaults derived from committed validated data, including the latest national monthly arrival value and the latest reconciled state-share fiscal year.
+
 ### `GET /v1/forecast/benchmark`
 
 Returns the committed rolling-origin forecast benchmark table.
@@ -82,3 +86,10 @@ The response includes the submitted assumptions, planning horizon, and scenario-
 ## Next step
 
 The API is intended to support the interactive decision-support interface. The front end can use `POST /v1/plan` to let users adjust assumptions and immediately compare coverage, unmet demand, staffing use, and cost across scenarios.
+
+
+## Data-driven defaults
+
+`reference_monthly_demand` is optional in `POST /v1/plan`. When omitted, the API uses the latest validated value in `data/processed/rpc_national_month.csv`.
+
+The state-share year is selected from the latest fiscal year present in the validated state-month panel rather than being hard-coded in the route.
