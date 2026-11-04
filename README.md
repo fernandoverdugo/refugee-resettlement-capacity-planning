@@ -145,13 +145,13 @@ See `docs/ACS_CAPACITY.md` for field definitions and interpretation constraints.
 
 The first forecasting benchmark uses the validated national monthly series for FY2021–FY2025. State-level monthly forecasting is intentionally deferred until more than one fully reconciled state-month year is available.
 
-Rolling-origin evaluation currently compares naive, seasonal-naive, and simple exponential smoothing forecasts. The naive model is the strongest overall benchmark:
+Rolling-origin evaluation currently compares naive, seasonal-naive, simple exponential smoothing, SARIMA, and gradient-boosting forecasts. The naive model remains the strongest overall benchmark:
 
 - **1-month MAE:** 1,680 arrivals; WAPE 30.5%
 - **2-month MAE:** 2,466 arrivals; WAPE 44.0%
 - **3-month MAE:** 2,576 arrivals; WAPE 45.2%
 
-Simple exponential smoothing is nearly tied at two months but does not consistently improve on the naive model. Seasonal-naive forecasts perform substantially worse, reflecting strong level shifts and the abrupt FY2025 decline.
+Neither SARIMA nor gradient boosting consistently improves on the naive model. Seasonal-naive forecasts perform substantially worse. The results show that abrupt policy-driven level shifts, especially the FY2025 decline, matter more than added model complexity in this short historical series.
 
 See `docs/FORECASTING.md` for the validation design and `analysis/forecast_backtest_summary.csv` for the full benchmark table.
 
@@ -176,9 +176,9 @@ The ACS capacity layer is scaffolded with validated variable metadata, reproduci
 
 **Phase 2 — Demand forecasting: in progress**
 
-A leakage-safe rolling-origin forecasting framework is now implemented and tested. Naive, seasonal-naive, and simple exponential smoothing models have been benchmarked on the real national monthly series. The current results establish a strong naive baseline and show that historical seasonality alone does not handle the observed regime changes well.
+A leakage-safe rolling-origin forecasting framework is now implemented and tested. Naive, seasonal-naive, simple exponential smoothing, SARIMA, and lag-based gradient boosting have all been benchmarked on the real national monthly series. The naive model remains the strongest overall reference forecast.
 
-Next challengers are SARIMA and lag-based gradient boosting, followed by scenario-aware forecasting for policy-driven demand shifts.
+The next milestone is scenario-aware forecasting: baseline, lower-demand, and higher-demand assumptions that can explicitly represent policy-driven regime changes before feeding the capacity and optimization layers.
 
 ## Technologies
 
