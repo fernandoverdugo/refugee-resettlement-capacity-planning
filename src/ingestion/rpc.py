@@ -352,6 +352,8 @@ AUDITED_OCR_STATE_TOTAL_ROWS = {
 }
 
 
+STATE_MONTHLY_START_FISCAL_YEAR = 2024
+
 EXPECTED_RPC_ANNUAL_TOTALS = {
     2021: 11411,
     2022: 25465,
@@ -815,6 +817,61 @@ def pdf_rows(content: bytes) -> list[list]:
 
 
 
+
+def pdf_grand_total_to_national_month(
+    rows: list[list],
+    fiscal_year: int,
+    source_url: str,
+    source_file: str,
+    retrieved_at_utc: str,
+) -> pd.DataFrame:
+    for row in rows:
+        normalized = [normalize_cell(value) for value in row]
+        if not normalized:
+            continue
+
+        first = normalized[0].lower() if normalized else ""
+        if first != "grand total":
+            continue
+
+        values = []
+        for value in normalized[1:]:
+            cleaned = value.replace(",", "").strip()
+            if re.fullmatch(r"\d+(?:\.0+)?", cleaned):
+                values.append(int(float(cleaned)))
+
+        if len(values) < 12:
+            continue
+
+        monthly = values[:12]
+        output = []
+        for month, arrivals in zip(MONTHS, monthly):
+            calendar_year = fiscal_year_for_month(fiscal_year, month)
+            output.append(
+                {
+                    "date": f"{calendar_year:04d}-{MONTH_NUMBER[month]:02d}-01",
+                    "calendar_year": calendar_year,
+                    "calendar_month": MONTH_NUMBER[month],
+                    "fiscal_year": fiscal_year,
+                    "arrivals": arrivals,
+                    "source_report": source_file,
+                    "source_url": source_url,
+                    "retrieved_at_utc": retrieved_at_utc,
+                }
+            )
+
+        frame = pd.DataFrame(output)
+        expected = EXPECTED_RPC_ANNUAL_TOTALS.get(fiscal_year)
+        if expected is not None and int(frame["arrivals"].sum()) != expected:
+            raise ValueError(
+                f"FY{fiscal_year} national monthly total does not reconcile: "
+                f"observed={int(frame['arrivals'].sum())}, expected={expected}"
+            )
+        return frame
+
+    raise ValueError(f"Could not identify national monthly totals for FY{fiscal_year}")
+
+
 def excel_rows_to_state_fiscal_year(
     rows: list[list],
     fiscal_year: int,
@@ -1059,26 +1116,64 @@ def build_rpc_panels(
     manifest_path: Path,
     monthly_output_path: Path,
     annual_output_path: Path,
+    national_monthly_output_path: Path | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     manifest: list[dict] = []
     monthly_frames: list[pd.DataFrame] = []
     annual_frames: list[pd.DataFrame] = []
+    national_monthly_frames: list[pd.DataFrame] = []
     client = requests.Session()
 
     for source in sources:
         metadata = download_source(source, raw_dir, session=client)
-        manifest.append(metadata)
         content = Path(metadata["local_path"]).read_bytes()
         retrieved_at = metadata["retrieved_at_utc"]
 
-        annual_frames.append(
-            parse_state_fiscal_year_bytes(source, content, retrieved_at)
-        )
+        source_metadata = dict(metadata)
+        source_metadata["state_annual_included"] = False
+        source_metadata["state_monthly_included"] = False
+        source_metadata["national_monthly_included"] = False
+
+        if source.file_type in {"xls", "xlsx"}:
+            annual_frames.append(
+                parse_state_fiscal_year_bytes(source, content, retrieved_at)
+            )
+            source_metadata["state_annual_included"] = True
 
         if source.file_type == "pdf":
-            monthly_frames.append(
-                parse_state_month_bytes(source, content, retrieved_at)
-            )
+            rows = pdf_rows(content)
+
+            try:
+                national_monthly_frames.append(
+                    pdf_grand_total_to_national_month(
+                        rows=rows,
+                        fiscal_year=source.fiscal_year,
+                        source_url=source.url,
+                        source_file=source.filename,
+                        retrieved_at_utc=retrieved_at,
+                    )
+                )
+                source_metadata["national_monthly_included"] = True
+            except ValueError as exc:
+                source_metadata["national_monthly_note"] = str(exc)
+
+            if source.fiscal_year >= STATE_MONTHLY_START_FISCAL_YEAR:
+                monthly = parse_state_month_bytes(source, content, retrieved_at)
+                monthly_frames.append(monthly)
+                annual_frames.append(state_fiscal_year_from_monthly(monthly))
+                source_metadata["state_monthly_included"] = True
+                source_metadata["state_annual_included"] = True
+            else:
+                source_metadata["state_monthly_note"] = (
+                    "Archived PDF does not reconcile reliably at state-month grain; "
+                    "retained for national monthly totals only."
+                )
+                source_metadata["state_annual_note"] = (
+                    "State annual totals omitted for this PDF era rather than "
+                    "publishing an incomplete state panel."
+                )
+
+        manifest.append(source_metadata)
 
     annual_panel = pd.concat(annual_frames, ignore_index=True)
     annual_panel = annual_panel.sort_values(["fiscal_year", "state"]).reset_index(
@@ -1088,6 +1183,11 @@ def build_rpc_panels(
     monthly_panel = pd.concat(monthly_frames, ignore_index=True)
     monthly_panel = monthly_panel.sort_values(["state", "date"]).reset_index(drop=True)
 
+    national_monthly_panel = pd.concat(
+        national_monthly_frames,
+        ignore_index=True,
+    ).sort_values("date").reset_index(drop=True)
+
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
@@ -1096,5 +1196,9 @@ def build_rpc_panels(
 
     annual_output_path.parent.mkdir(parents=True, exist_ok=True)
     annual_panel.to_csv(annual_output_path, index=False)
+
+    if national_monthly_output_path is not None:
+        national_monthly_output_path.parent.mkdir(parents=True, exist_ok=True)
+        national_monthly_panel.to_csv(national_monthly_output_path, index=False)
 
     return monthly_panel, annual_panel
