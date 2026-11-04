@@ -60,12 +60,12 @@ ACS measures will be treated as contextual capacity indicators, not as causal ex
 ### Phase 2 — Demand forecasting
 Benchmark several forecasting approaches:
 
-- seasonal-naive baseline
+- naive and seasonal-naive baselines
 - exponential smoothing
 - SARIMA
 - gradient boosting with lag/calendar features
 
-Models will be evaluated with rolling-origin backtesting using metrics such as MAE, RMSE, and weighted absolute percentage error where appropriate.
+Models are evaluated with expanding-window rolling-origin backtesting at 1–3 month horizons using MAE, RMSE, WAPE, and sMAPE.
 
 ### Phase 3 — Capacity and scenario modeling
 Create transparent planning indicators and configurable scenarios for:
@@ -141,6 +141,20 @@ Census data queries require a `CENSUS_API_KEY`. Local runs read the key from the
 
 See `docs/ACS_CAPACITY.md` for field definitions and interpretation constraints.
 
+## Forecasting benchmark
+
+The first forecasting benchmark uses the validated national monthly series for FY2021–FY2025. State-level monthly forecasting is intentionally deferred until more than one fully reconciled state-month year is available.
+
+Rolling-origin evaluation currently compares naive, seasonal-naive, and simple exponential smoothing forecasts. The naive model is the strongest overall benchmark:
+
+- **1-month MAE:** 1,680 arrivals; WAPE 30.5%
+- **2-month MAE:** 2,466 arrivals; WAPE 44.0%
+- **3-month MAE:** 2,576 arrivals; WAPE 45.2%
+
+Simple exponential smoothing is nearly tied at two months but does not consistently improve on the naive model. Seasonal-naive forecasts perform substantially worse, reflecting strong level shifts and the abrupt FY2025 decline.
+
+See `docs/FORECASTING.md` for the validation design and `analysis/forecast_backtest_summary.csv` for the full benchmark table.
+
 ## Technical principles
 
 - Reproducible public-data ingestion
@@ -154,11 +168,17 @@ See `docs/ACS_CAPACITY.md` for field definitions and interpretation constraints.
 
 ## Status
 
-**Phase 1 — Data engineering**
+**Phase 1 — Data engineering: operational**
 
-The RPC ingestion layer now discovers the official archive, handles legacy XLS/XLSX and modern PDF source formats, preserves source provenance and checksums, and publishes only analytical grains that pass exact reconciliation checks. A national monthly demand series is validated for FY2021–FY2025, while FY2024 provides a fully reconciled state-month allocation panel.
+The RPC ingestion layer discovers the official archive, handles legacy XLS/XLSX and modern PDF source formats, preserves source provenance and checksums, and publishes only analytical grains that pass exact reconciliation checks. A national monthly demand series is validated for FY2021–FY2025, while FY2024 provides a fully reconciled state-month allocation panel.
 
-The ACS capacity layer is also scaffolded with validated variable metadata, reproducible Census API ingestion, tests, documentation, and a secret-backed refresh workflow for state-level socioeconomic, housing, demographic, and language indicators.
+The ACS capacity layer is scaffolded with validated variable metadata, reproducible Census API ingestion, tests, documentation, and a secret-backed refresh workflow for state-level socioeconomic, housing, demographic, and language indicators.
+
+**Phase 2 — Demand forecasting: in progress**
+
+A leakage-safe rolling-origin forecasting framework is now implemented and tested. Naive, seasonal-naive, and simple exponential smoothing models have been benchmarked on the real national monthly series. The current results establish a strong naive baseline and show that historical seasonality alone does not handle the observed regime changes well.
+
+Next challengers are SARIMA and lag-based gradient boosting, followed by scenario-aware forecasting for policy-driven demand shifts.
 
 ## Technologies
 
