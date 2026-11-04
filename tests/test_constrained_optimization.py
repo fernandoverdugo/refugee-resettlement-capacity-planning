@@ -58,6 +58,8 @@ def test_constrained_optimizer_respects_budget():
     assert np.isclose(result["monthly_cost"].sum(), 20000.0)
     assert np.isclose(result["served_demand"].sum(), 50.0)
     assert np.allclose(result["coverage_rate"], 0.5, atol=1e-7)
+    assert result["budget_binding"].all()
+    assert not result["fte_binding"].any()
 
 
 def test_constrained_optimizer_respects_state_ceiling():
@@ -88,6 +90,7 @@ def test_constrained_optimizer_respects_state_ceiling():
     assert indexed.loc["A", "allocated_fte"] <= 1.0 + 1e-9
     assert np.isclose(indexed.loc["A", "coverage_rate"], 0.25)
     assert np.isclose(result["minimum_coverage_achieved"].iloc[0], 0.25)
+    assert bool(indexed.loc["A", "at_fte_ceiling"])
 
 
 def test_constrained_optimizer_rejects_infeasible_minimum_coverage():
@@ -128,6 +131,9 @@ def test_summarize_constrained_optimization_reports_cost():
             "allocated_fte": [1.0, 1.0],
             "monthly_cost": [10000.0, 10000.0],
             "minimum_coverage_achieved": [0.5, 0.5],
+            "budget_binding": [True, True],
+            "fte_binding": [False, False],
+            "at_fte_ceiling": [True, False],
         }
     )
 
@@ -137,3 +143,6 @@ def test_summarize_constrained_optimization_reports_cost():
     assert row["total_cost"] == 20000.0
     assert row["service_coverage_rate"] == 0.5
     assert row["minimum_coverage"] == 0.5
+    assert row["budget_binding_months"] == 1
+    assert row["fte_binding_months"] == 0
+    assert row["max_states_at_fte_ceiling"] == 1
