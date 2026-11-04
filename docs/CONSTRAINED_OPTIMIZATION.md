@@ -21,7 +21,7 @@ The helper used for the initial constrained benchmark creates transparent hypoth
 | Total FTE pool | 8 |
 | Monthly cost per FTE | $7,500 |
 | Monthly budget | $60,000 |
-| State FTE ceiling | 1.5× proportional FY2024 share |
+| State FTE ceiling | 1.5× proportional latest validated state share (currently FY2024) |
 | Minimum state FTE ceiling | 0.10 FTE |
 | Caseload per FTE | 30 |
 | Utilization | 85% |
@@ -61,3 +61,16 @@ The richer formulation allows the application to answer questions such as:
 - How does the allocation change when state operating costs differ?
 
 These are operational planning questions rather than predictions of individual placement.
+
+
+## Binding-constraint diagnostics
+
+The constrained optimizer reports whether the monthly staffing budget or total-FTE limit is binding, and flags state-month allocations that reach their state-specific FTE ceiling.
+
+Scenario summaries include:
+
+- `budget_binding_months`
+- `fte_binding_months`
+- `max_states_at_fte_ceiling`
+
+These diagnostics distinguish a budget shortage from an FTE shortage or a state-level staffing ceiling.
