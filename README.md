@@ -98,6 +98,8 @@ Build an interactive application where users can adjust planning assumptions and
 - unmet demand
 - alternative scenarios
 
+The first application layer is now implemented as a FastAPI service. It exposes committed benchmark outputs and a parameterized planning endpoint that reruns the scenario and constrained-optimization pipeline from user-supplied assumptions.
+
 ## Planned architecture
 
 ```text
@@ -212,7 +214,21 @@ ACS-based contextual constraints are intentionally deferred because a validated 
 
 See `docs/CONSTRAINED_OPTIMIZATION.md` and `analysis/constrained_optimization_summary.csv` for the extended formulation and benchmark outputs.
 
-The next major milestone is Phase 5: expose the forecast, scenarios, capacity assumptions, and optimization outputs through a small API and interactive decision-support interface.
+**Phase 5 — Decision-support application: in progress**
+
+A FastAPI backend now exposes health status, forecast benchmarks, scenario summaries, capacity results, optimization outputs, and a parameterized `POST /v1/plan` endpoint. The planning endpoint validates user assumptions and reuses the existing scenario and optimization modules rather than duplicating analytical logic.
+
+Run locally with:
+
+```bash
+uvicorn src.api.app:app --reload
+```
+
+FastAPI provides interactive API documentation at `/docs`.
+
+See `docs/API.md` for endpoint definitions and request structure.
+
+The next milestone is the interactive front end that will let users change planning assumptions and compare scenario coverage, unmet demand, staffing use, and cost without working directly with code or JSON.
 
 ## Technologies
 
