@@ -204,6 +204,52 @@ def optimize_constrained_capacity(
     return frame
 
 
+
+def optimize_all_constrained_scenarios(
+    state_scenarios: pd.DataFrame,
+    state_constraints: pd.DataFrame,
+    monthly_budget: float = 60000.0,
+    total_fte: float = 8.0,
+    monthly_caseload_per_fte: float = 30.0,
+    utilization_rate: float = 0.85,
+    minimum_coverage: float = 0.0,
+) -> pd.DataFrame:
+    required = {
+        "scenario",
+        "date",
+        "state",
+        "state_demand",
+        "historical_share",
+        "share_fiscal_year",
+    }
+    missing = required.difference(state_scenarios.columns)
+    if missing:
+        raise ValueError(f"Missing required columns: {sorted(missing)}")
+
+    rows = []
+    for (scenario, date), group in state_scenarios.groupby(
+        ["scenario", "date"], sort=True
+    ):
+        optimized = optimize_constrained_capacity(
+            group,
+            state_constraints,
+            monthly_budget=monthly_budget,
+            total_fte=total_fte,
+            monthly_caseload_per_fte=monthly_caseload_per_fte,
+            utilization_rate=utilization_rate,
+            minimum_coverage=minimum_coverage,
+        )
+        optimized["scenario"] = scenario
+        optimized["date"] = date
+        optimized["historical_share"] = group["historical_share"].to_numpy()
+        optimized["share_fiscal_year"] = group["share_fiscal_year"].to_numpy()
+        rows.append(optimized)
+
+    return pd.concat(rows, ignore_index=True).sort_values(
+        ["scenario", "date", "state"]
+    ).reset_index(drop=True)
+
+
 def summarize_constrained_optimization(results: pd.DataFrame) -> pd.DataFrame:
     required = {
         "scenario",
