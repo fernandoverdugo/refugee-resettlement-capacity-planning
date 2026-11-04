@@ -106,7 +106,7 @@
       <h2>Planning assumptions</h2>
       <form id="planner">
         <label class="wide">Reference monthly demand
-          <input id="reference_monthly_demand" type="number" min="0" step="1" value="193">
+          <input id="reference_monthly_demand" type="number" min="0" step="1" placeholder="Loading validated default…">
         </label>
         <label>Horizon (months)
           <input id="horizon_months" type="number" min="1" max="24" step="1" value="6">
@@ -135,10 +135,10 @@
         <label>State ceiling multiplier
           <input id="ceiling_multiplier" type="number" min="0" step="0.1" value="1.5">
         </label>
-        <label>Minimum coverage
+        <label>Minimum coverage (0–1)
           <input id="minimum_coverage" type="number" min="0" max="1" step="0.05" value="0">
         </label>
-        <button id="run" type="submit">Run planning scenario</button>
+        <button id="run" type="submit" disabled>Run planning scenario</button>
       </form>
       <div id="status" class="status"></div>
     </section>
@@ -163,6 +163,8 @@
                 <th>Coverage</th>
                 <th>FTE-months</th>
                 <th>Total cost</th>
+                <th>Budget bind</th>
+                <th>FTE bind</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
@@ -186,6 +188,24 @@ const numeric = id => Number(document.getElementById(id).value);
 const money = value => new Intl.NumberFormat("en-US", {style: "currency", currency: "USD", maximumFractionDigits: 0}).format(value);
 const number = value => new Intl.NumberFormat("en-US", {maximumFractionDigits: 1}).format(value);
 const percent = value => new Intl.NumberFormat("en-US", {style: "percent", maximumFractionDigits: 1}).format(value);
+
+async function loadDefaults() {
+  statusBox.textContent = "Loading defaults from validated data…";
+  try {
+    const response = await fetch("/v1/defaults");
+    const defaults = await response.json();
+    if (!response.ok) throw new Error(defaults.detail || "Could not load planning defaults.");
+
+    document.getElementById("reference_monthly_demand").value = defaults.reference_monthly_demand;
+    statusBox.textContent = `Defaults loaded from ${defaults.reference_observation_date}; state shares use FY${defaults.state_share_fiscal_year}.`;
+    button.disabled = false;
+  } catch (error) {
+    statusBox.className = "status error";
+    statusBox.textContent = error.message;
+  }
+}
+
+loadDefaults();
 
 form.addEventListener("submit", async event => {
   event.preventDefault();
@@ -237,6 +257,8 @@ form.addEventListener("submit", async event => {
         <td>${percent(row.service_coverage_rate)}</td>
         <td>${number(row.allocated_fte_months)}</td>
         <td>${money(row.total_cost)}</td>
+        <td>${row.budget_binding_months}/${row.months} mo</td>
+        <td>${row.fte_binding_months}/${row.months} mo</td>
       `;
       rows.appendChild(tr);
     });
