@@ -157,6 +157,14 @@ Neither SARIMA nor gradient boosting consistently improves on the naive model. S
 
 See `docs/FORECASTING.md` for the validation design and `analysis/forecast_backtest_summary.csv` for the full benchmark table.
 
+## Scenario and capacity planning
+
+The scenario layer separates empirical forecasts from explicit planning assumptions. The default lower, baseline, and higher cases apply 0.5×, 1.0×, and 1.5× multipliers to the validated reference forecast.
+
+The capacity layer then compares those scenarios with configurable staffing and caseload assumptions. Under the default capacity assumptions, the six-month higher-demand scenario exceeds available service capacity by 513 cases.
+
+See `docs/SCENARIOS.md`, `docs/CAPACITY.md`, and `analysis/capacity_summary.csv` for assumptions, methodology, and outputs.
+
 ## Technical principles
 
 - Reproducible public-data ingestion
@@ -184,9 +192,11 @@ Scenario-aware forecasting is now implemented. A six-month reference forecast is
 
 **Phase 3 — Capacity and scenario modeling: in progress**
 
-The first demand scenario engine is operational and produces reproducible planning outputs. Using the current six-month reference forecast, the default scenario totals are 579 arrivals under the lower-demand case, 1,158 under baseline, and 1,737 under the higher-demand case.
+The demand scenario engine is operational and produces reproducible lower, baseline, and higher planning cases. A service-capacity model now converts staffing, caseload, and utilization assumptions into monthly operational capacity and quantifies served demand, unmet demand, surplus capacity, utilization, and service coverage.
 
-The next step is to combine these demand scenarios with explicit service-capacity assumptions such as staffing, caseload limits, and available funding, then quantify unmet demand before optimization.
+Using the default assumption of 8 FTE, 30 cases per FTE per month, and 85% usable capacity, the system provides 204 cases of monthly capacity. Across the current six-month scenarios, lower and baseline demand are fully covered, while the higher-demand case produces 513 cases of unmet demand and a 70.5% coverage rate.
+
+The next step is constrained optimization: allocate limited service resources across planning units while respecting budget, staffing, and minimum-coverage constraints.
 
 ## Technologies
 
