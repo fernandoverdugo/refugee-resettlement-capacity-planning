@@ -2,10 +2,6 @@ name: Diagnose FY2025 FY2026 OCR
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/fy2025-2026-ocr-diagnostic.yml"
 
 jobs:
   diagnose:
