@@ -230,7 +230,13 @@ Open the root page for the planning interface or `/docs` for FastAPI's interacti
 
 See `docs/API.md` and `docs/APP.md` for endpoint definitions and interface behavior.
 
-The next milestone is deployment and presentation polish: containerize the application, add a production health check, and make the decision-support interface easy to launch from the portfolio.
+Deployment readiness is now implemented. The application has a production Dockerfile, a reduced app-only dependency set, a container health check, a Render blueprint, and a dedicated Docker-build CI workflow.
+
+The deployed service runs the FastAPI API and interactive planning interface as a single container while keeping ingestion, OCR, model training, and public-data refreshes outside the request path.
+
+See `docs/DEPLOYMENT.md`, `Dockerfile`, and `render.yaml` for deployment details.
+
+The next milestone is a live deployment and final portfolio presentation polish: publish the planner, add the public application URL to this README, and surface that link from the personal portfolio.
 
 ## Technologies
 
