@@ -426,9 +426,20 @@ def ocr_pdf_to_state_month(
         ordered_centers = [month_centers[month] for month in MONTHS]
         spacing = float(np.median(np.diff(ordered_centers)))
         state_boundary = ordered_centers[0] * 0.52
+        header_top = float(
+            data[
+                data["text"].str.lower().str.replace(".", "", regex=False)
+                .isin([month.lower() for month in MONTHS])
+            ]["top"].median()
+        )
+        body_top_min = header_top + 8
+        body_top_max = image.height * 0.88
 
         line_columns = ["block_num", "par_num", "line_num"]
         for _, line in data.groupby(line_columns, sort=False):
+            line_top = float(line["top"].median())
+            if not (body_top_min <= line_top <= body_top_max):
+                continue
             line = line.sort_values("left")
             words = line["text"].tolist()
             text = " ".join(words)
@@ -476,7 +487,7 @@ def ocr_pdf_to_state_month(
                     continue
 
                 value = normalize_ocr_number(token["text"])
-                if value is None:
+                if value is None or value > 5000:
                     continue
 
                 month = MONTHS[nearest_index]
