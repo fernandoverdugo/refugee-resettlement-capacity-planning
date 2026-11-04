@@ -77,6 +77,8 @@ Create transparent planning indicators and configurable scenarios for:
 - available funding
 - minimum service coverage
 
+The first scenario engine is implemented with explicit lower (0.5×), baseline (1.0×), and higher (1.5×) demand assumptions applied to the validated reference forecast.
+
 ### Phase 4 — Resource optimization
 Translate forecast demand into resource-allocation recommendations using constrained mathematical optimization.
 
@@ -178,7 +180,13 @@ The ACS capacity layer is scaffolded with validated variable metadata, reproduci
 
 A leakage-safe rolling-origin forecasting framework is now implemented and tested. Naive, seasonal-naive, simple exponential smoothing, SARIMA, and lag-based gradient boosting have all been benchmarked on the real national monthly series. The naive model remains the strongest overall reference forecast.
 
-The next milestone is scenario-aware forecasting: baseline, lower-demand, and higher-demand assumptions that can explicitly represent policy-driven regime changes before feeding the capacity and optimization layers.
+Scenario-aware forecasting is now implemented. A six-month reference forecast is transformed into configurable lower-demand, baseline, and higher-demand planning cases, with assumptions kept separate from the empirical model.
+
+**Phase 3 — Capacity and scenario modeling: in progress**
+
+The first demand scenario engine is operational and produces reproducible planning outputs. Using the current six-month reference forecast, the default scenario totals are 579 arrivals under the lower-demand case, 1,158 under baseline, and 1,737 under the higher-demand case.
+
+The next step is to combine these demand scenarios with explicit service-capacity assumptions such as staffing, caseload limits, and available funding, then quantify unmet demand before optimization.
 
 ## Technologies
 
