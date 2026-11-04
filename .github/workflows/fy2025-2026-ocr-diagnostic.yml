@@ -1,0 +1,54 @@
+name: Diagnose FY2025 FY2026 OCR
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/fy2025-2026-ocr-diagnostic.yml"
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr
+      - run: python -m pip install -r requirements.txt
+      - run: |
+          python - <<'PY'
+          from datetime import datetime, timezone
+          import requests
+          from src.ingestion.rpc import (
+              discover_rpc_sources,
+              ocr_pdf_total_rows_to_state_month,
+              EXPECTED_RPC_ANNUAL_TOTALS,
+          )
+
+          sources = {s.fiscal_year: s for s in discover_rpc_sources()}
+          for year in (2025, 2026):
+              source = sources[year]
+              response = requests.get(source.url, timeout=120)
+              response.raise_for_status()
+              try:
+                  frame = ocr_pdf_total_rows_to_state_month(
+                      content=response.content,
+                      fiscal_year=year,
+                      source_url=source.url,
+                      source_file=source.filename,
+                      retrieved_at_utc=datetime.now(timezone.utc).isoformat(),
+                  )
+                  print(year, {
+                      "states": int(frame["state"].nunique()),
+                      "rows": len(frame),
+                      "total": int(frame["arrivals"].sum()),
+                      "expected": EXPECTED_RPC_ANNUAL_TOTALS.get(year),
+                      "month_totals": frame.groupby("calendar_month")["arrivals"].sum().to_dict(),
+                  })
+              except Exception as exc:
+                  print(year, "ERROR", repr(exc))
+          PY
