@@ -7,6 +7,7 @@ from src.forecasting.backtesting import (
     prepare_monthly_series,
     rolling_origin_backtest,
     seasonal_naive_forecast,
+    simple_exponential_smoothing_forecast,
     summarize_backtest,
 )
 
@@ -53,6 +54,16 @@ def test_seasonal_naive_forecast_repeats_last_season():
     np.testing.assert_array_equal(forecast, np.array([13.0, 14.0, 15.0, 16.0]))
 
 
+def test_simple_exponential_smoothing_returns_requested_horizon():
+    index = pd.date_range("2023-01-01", periods=24, freq="MS")
+    series = pd.Series(np.linspace(10.0, 30.0, 24), index=index)
+
+    forecast = simple_exponential_smoothing_forecast(series, 3)
+
+    assert len(forecast) == 3
+    assert np.isfinite(forecast).all()
+
+
 def test_rolling_origin_backtest_uses_only_prior_observations():
     index = pd.date_range("2020-01-01", periods=30, freq="MS")
     series = pd.Series(np.arange(1, 31, dtype=float), index=index)
@@ -82,7 +93,11 @@ def test_summarize_backtest_returns_metrics_by_model_and_horizon():
     results = rolling_origin_backtest(series, min_train=24, max_horizon=3)
     summary = summarize_backtest(results)
 
-    assert set(summary["model"]) == {"naive", "seasonal_naive"}
+    assert set(summary["model"]) == {
+        "naive",
+        "seasonal_naive",
+        "simple_exponential_smoothing",
+    }
     assert set(summary["horizon"]) == {1, 2, 3}
     assert (summary["n_forecasts"] > 0).all()
     assert (summary["mae"] >= 0).all()
