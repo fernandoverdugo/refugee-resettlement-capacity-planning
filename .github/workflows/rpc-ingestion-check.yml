@@ -39,15 +39,35 @@ jobs:
               discover_rpc_sources,
               parse_state_fiscal_year_bytes,
               parse_state_month_bytes,
+              pdf_grand_total_to_national_month,
+              pdf_rows,
           )
 
           sources = discover_rpc_sources()
           years = [source.fiscal_year for source in sources]
 
           assert min(years) <= 2012
+          assert 2024 in years
           assert 2025 in years
           assert 2019 in years
           assert 2018 in years
+
+          source_2024 = next(
+              source for source in sources if source.fiscal_year == 2024
+          )
+          response_2024 = requests.get(source_2024.url, timeout=120)
+          response_2024.raise_for_status()
+
+          monthly_2024 = parse_state_month_bytes(
+              source_2024,
+              response_2024.content,
+              datetime.now(timezone.utc).isoformat(),
+          )
+
+          assert monthly_2024["state"].nunique() == 51
+          assert len(monthly_2024) == 612
+          assert int(monthly_2024["arrivals"].sum()) == 100034
+          assert "Texas" in set(monthly_2024["state"])
 
           source_2025 = next(
               source for source in sources if source.fiscal_year == 2025
@@ -55,22 +75,16 @@ jobs:
           response_2025 = requests.get(source_2025.url, timeout=120)
           response_2025.raise_for_status()
 
-          monthly_2025 = parse_state_month_bytes(
-              source_2025,
-              response_2025.content,
-              datetime.now(timezone.utc).isoformat(),
-          )
-          annual_2025 = parse_state_fiscal_year_bytes(
-              source_2025,
-              response_2025.content,
-              datetime.now(timezone.utc).isoformat(),
+          national_2025 = pdf_grand_total_to_national_month(
+              rows=pdf_rows(response_2025.content),
+              fiscal_year=2025,
+              source_url=source_2025.url,
+              source_file=source_2025.filename,
+              retrieved_at_utc=datetime.now(timezone.utc).isoformat(),
           )
 
-          assert monthly_2025["state"].nunique() >= 40
-          assert len(monthly_2025) >= 400
-          assert monthly_2025["arrivals"].sum() > 0
-          assert "Texas" in set(monthly_2025["state"])
-          assert annual_2025["state"].nunique() >= 40
+          assert len(national_2025) == 12
+          assert int(national_2025["arrivals"].sum()) == 38102
 
           legacy_results = {}
           for fiscal_year in (2019, 2018):
@@ -98,7 +112,6 @@ jobs:
                   "arrivals": int(annual["arrivals"].sum()),
               }
 
-          assert source_2025.file_type == "pdf"
           assert legacy_results[2019]["file_type"] == "xlsx"
           assert legacy_results[2018]["file_type"] == "xls"
 
@@ -106,16 +119,12 @@ jobs:
               {
                   "sources": len(sources),
                   "source_years": [min(years), max(years)],
-                  "file_types": sorted({source.file_type for source in sources}),
-                  "fy2025_monthly_rows": len(monthly_2025),
-                  "fy2025_monthly_states": int(monthly_2025["state"].nunique()),
+                  "fy2024_state_month_rows": len(monthly_2024),
+                  "fy2025_national_month_rows": len(national_2025),
                   "legacy_annual": legacy_results,
               }
           )
           PY
-
-
-
 
       - name: Inspect FY2024 updated-report total rows
         run: |
