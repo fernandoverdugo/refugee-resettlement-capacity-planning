@@ -8,6 +8,7 @@ import pandas as pd
 
 ANNUAL_PATH = Path("data/processed/rpc_state_fiscal_year.csv")
 MONTHLY_PATH = Path("data/processed/rpc_state_month.csv")
+NATIONAL_MONTHLY_PATH = Path("data/processed/rpc_national_month.csv")
 SUMMARY_PATH = Path("analysis/rpc_ingestion_summary.json")
 STATE_PROFILE_PATH = Path("analysis/rpc_monthly_state_profile.csv")
 MONTH_PROFILE_PATH = Path("analysis/rpc_month_profile.csv")
@@ -110,9 +111,15 @@ def build_annual_totals(frame: pd.DataFrame) -> pd.DataFrame:
 def main() -> None:
     annual = pd.read_csv(ANNUAL_PATH)
     monthly = pd.read_csv(MONTHLY_PATH)
+    national_monthly = pd.read_csv(NATIONAL_MONTHLY_PATH)
 
     validate_annual(annual)
     validate_monthly(monthly)
+
+    assert not national_monthly.duplicated(["date"]).any()
+    assert (national_monthly["arrivals"] >= 0).all()
+    assert national_monthly["fiscal_year"].min() <= 2021
+    assert national_monthly["fiscal_year"].nunique() >= 4
 
     state_profile = build_state_profile(monthly)
     month_profile = build_month_profile(monthly)
@@ -144,6 +151,25 @@ def main() -> None:
             "median_state_zero_month_share": round(
                 float(state_profile["zero_month_share"].median()), 4
             ),
+        },
+        "national_monthly_panel": {
+            "rows": int(len(national_monthly)),
+            "first_date": pd.to_datetime(national_monthly["date"]).min().date().isoformat(),
+            "last_date": pd.to_datetime(national_monthly["date"]).max().date().isoformat(),
+            "fiscal_years": int(national_monthly["fiscal_year"].nunique()),
+            "total_arrivals": int(national_monthly["arrivals"].sum()),
+        },
+        "coverage": {
+            "state_annual_fiscal_years": sorted(
+                int(value) for value in annual["fiscal_year"].unique()
+            ),
+            "state_monthly_fiscal_years": sorted(
+                int(value) for value in monthly["fiscal_year"].unique()
+            ),
+            "national_monthly_fiscal_years": sorted(
+                int(value) for value in national_monthly["fiscal_year"].unique()
+            ),
+            "state_level_pdf_gap": [2021, 2022, 2023],
         },
         "forecasting_diagnostics": {
             "states_with_at_least_48_months": int(
