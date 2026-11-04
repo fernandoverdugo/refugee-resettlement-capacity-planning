@@ -1,10 +1,10 @@
 {
   "annual_panel": {
-    "rows": 439,
+    "rows": 490,
     "states": 51,
     "first_fiscal_year": 2012,
-    "last_fiscal_year": 2020,
-    "total_arrivals": 471094,
+    "last_fiscal_year": 2024,
+    "total_arrivals": 571128,
     "fiscal_year_totals": {
       "2012": 58238,
       "2013": 69923,
@@ -14,7 +14,8 @@
       "2017": 53716,
       "2018": 22491,
       "2019": 30000,
-      "2020": 11814
+      "2020": 11814,
+      "2024": 100034
     }
   },
   "monthly_panel": {
@@ -34,11 +35,11 @@
     }
   },
   "national_monthly_panel": {
-    "rows": 48,
+    "rows": 60,
     "first_date": "2020-10-01",
     "last_date": "2025-09-01",
-    "fiscal_years": 4,
-    "total_arrivals": 134992
+    "fiscal_years": 5,
+    "total_arrivals": 235026
   },
   "coverage": {
     "state_annual_fiscal_years": [
@@ -50,7 +51,8 @@
       2017,
       2018,
       2019,
-      2020
+      2020,
+      2024
     ],
     "state_monthly_fiscal_years": [
       2024
@@ -59,6 +61,7 @@
       2021,
       2022,
       2023,
+      2024,
       2025
     ],
     "state_level_pdf_gap": [
