@@ -352,7 +352,7 @@ AUDITED_OCR_STATE_TOTAL_ROWS = {
 }
 
 
-STATE_MONTHLY_START_FISCAL_YEAR = 2024
+VALIDATED_STATE_MONTHLY_FISCAL_YEARS = {2024}
 
 EXPECTED_RPC_ANNUAL_TOTALS = {
     2021: 11411,
@@ -978,6 +978,72 @@ def excel_rows_to_state_fiscal_year(
     )
 
 
+
+def pdf_rows_to_state_fiscal_year(
+    rows: list[list],
+    fiscal_year: int,
+    source_url: str,
+    source_file: str,
+    retrieved_at_utc: str,
+) -> pd.DataFrame:
+    totals: dict[str, int] = {}
+    current_state: str | None = None
+
+    for row in rows:
+        normalized = [normalize_cell(value) for value in row]
+        if not normalized:
+            continue
+
+        first_cell = normalized[0] if normalized else ""
+        detected_state = state_from_pdf_cell(first_cell)
+
+        if first_cell:
+            if detected_state:
+                current_state = detected_state
+            else:
+                current_state = None
+
+        if current_state is None:
+            continue
+
+        numeric_values = []
+        for value in normalized[1:]:
+            cleaned = value.replace(",", "").strip()
+            if re.fullmatch(r"\d+(?:\.0+)?", cleaned):
+                numeric_values.append(int(float(cleaned)))
+
+        if not numeric_values:
+            continue
+
+        row_total = numeric_values[-1]
+        totals[current_state] = totals.get(current_state, 0) + row_total
+
+    output = [
+        {
+            "state": state,
+            "fiscal_year": fiscal_year,
+            "arrivals": arrivals,
+            "source_report": source_file,
+            "source_url": source_url,
+            "retrieved_at_utc": retrieved_at_utc,
+        }
+        for state, arrivals in sorted(totals.items())
+    ]
+
+    frame = pd.DataFrame(output)
+    if frame.empty:
+        raise ValueError(f"No PDF annual state totals parsed for FY{fiscal_year}")
+
+    expected = EXPECTED_RPC_ANNUAL_TOTALS.get(fiscal_year)
+    if expected is not None and int(frame["arrivals"].sum()) != expected:
+        raise ValueError(
+            f"FY{fiscal_year} PDF annual state totals do not reconcile: "
+            f"observed={int(frame['arrivals'].sum())}, expected={expected}"
+        )
+
+    return frame
+
+
 def state_fiscal_year_from_monthly(frame: pd.DataFrame) -> pd.DataFrame:
     metadata_columns = [
         "state",
@@ -1214,20 +1280,28 @@ def build_rpc_panels(
             except ValueError as exc:
                 source_metadata["national_monthly_note"] = str(exc)
 
-            if source.fiscal_year >= STATE_MONTHLY_START_FISCAL_YEAR:
+            try:
+                annual_frames.append(
+                    pdf_rows_to_state_fiscal_year(
+                        rows=rows,
+                        fiscal_year=source.fiscal_year,
+                        source_url=source.url,
+                        source_file=source.filename,
+                        retrieved_at_utc=retrieved_at,
+                    )
+                )
+                source_metadata["state_annual_included"] = True
+            except ValueError as exc:
+                source_metadata["state_annual_note"] = str(exc)
+
+            if source.fiscal_year in VALIDATED_STATE_MONTHLY_FISCAL_YEARS:
                 monthly = parse_state_month_bytes(source, content, retrieved_at)
                 monthly_frames.append(monthly)
-                annual_frames.append(state_fiscal_year_from_monthly(monthly))
                 source_metadata["state_monthly_included"] = True
-                source_metadata["state_annual_included"] = True
             else:
                 source_metadata["state_monthly_note"] = (
-                    "Archived PDF does not reconcile reliably at state-month grain; "
-                    "retained for national monthly totals only."
-                )
-                source_metadata["state_annual_note"] = (
-                    "State annual totals omitted for this PDF era rather than "
-                    "publishing an incomplete state panel."
+                    "State-month extraction for this PDF did not meet exact "
+                    "reconciliation requirements; national monthly totals are retained."
                 )
 
         manifest.append(source_metadata)
