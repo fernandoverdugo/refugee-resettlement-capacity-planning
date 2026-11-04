@@ -1,0 +1,59 @@
+name: Diagnose RPC PDF parsers
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/rpc-parser-diagnostic.yml"
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr
+      - run: python -m pip install -r requirements.txt
+      - name: Compare parsers
+        run: |
+          python - <<'PY'
+          from datetime import datetime, timezone
+          import requests
+          from src.ingestion.rpc import (
+              discover_rpc_sources,
+              pdf_rows,
+              rows_to_state_month,
+              pdf_rows_to_state_month,
+              ocr_pdf_total_rows_to_state_month,
+              EXPECTED_RPC_ANNUAL_TOTALS,
+          )
+
+          sources = {s.fiscal_year: s for s in discover_rpc_sources()}
+          for year in (2021, 2022, 2023, 2024):
+              source = sources[year]
+              response = requests.get(source.url, timeout=120)
+              response.raise_for_status()
+              stamp = datetime.now(timezone.utc).isoformat()
+              rows = pdf_rows(response.content)
+              print(f"=== FY{year} expected={EXPECTED_RPC_ANNUAL_TOTALS.get(year)} ===")
+              for name, fn in [
+                  ("explicit_total_rows", lambda: rows_to_state_month(rows, year, source.url, source.filename, stamp)),
+                  ("nationality_sum", lambda: pdf_rows_to_state_month(rows, year, source.url, source.filename, stamp)),
+                  ("ocr_total_rows", lambda: ocr_pdf_total_rows_to_state_month(response.content, year, source.url, source.filename, stamp)),
+              ]:
+                  try:
+                      frame = fn()
+                      print(name, {
+                          "states": int(frame["state"].nunique()),
+                          "rows": len(frame),
+                          "total": int(frame["arrivals"].sum()),
+                          "missing_states": sorted(set(__import__("src.ingestion.rpc", fromlist=["US_STATES"]).US_STATES) - set(frame["state"])),
+                      })
+                  except Exception as exc:
+                      print(name, "ERROR", repr(exc))
+          PY
