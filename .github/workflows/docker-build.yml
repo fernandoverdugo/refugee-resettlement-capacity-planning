@@ -1,0 +1,37 @@
+name: Docker build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "requirements-app.txt"
+      - "render.yaml"
+      - "src/api/**"
+      - "src/optimization/**"
+      - "src/scenarios/**"
+      - "analysis/**"
+      - "data/processed/**"
+      - ".github/workflows/docker-build.yml"
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "requirements-app.txt"
+      - "render.yaml"
+      - "src/api/**"
+      - "src/optimization/**"
+      - "src/scenarios/**"
+      - "analysis/**"
+      - "data/processed/**"
+      - ".github/workflows/docker-build.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image
+        run: docker build -t refugee-capacity-planner:ci .
