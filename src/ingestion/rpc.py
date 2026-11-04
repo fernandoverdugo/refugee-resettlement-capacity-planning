@@ -827,6 +827,34 @@ def validate_pdf_year_total(frame: pd.DataFrame, fiscal_year: int) -> pd.DataFra
     return frame
 
 
+
+def reconcile_missing_pdf_states(
+    primary: pd.DataFrame,
+    alternatives: list[pd.DataFrame],
+    fiscal_year: int,
+) -> pd.DataFrame:
+    expected = EXPECTED_RPC_ANNUAL_TOTALS.get(fiscal_year)
+    if expected is None or int(primary["arrivals"].sum()) == expected:
+        return primary
+
+    combined = primary.copy()
+    present_states = set(combined["state"])
+
+    for alternative in alternatives:
+        missing = set(alternative["state"]) - present_states
+        if not missing:
+            continue
+
+        additions = alternative[alternative["state"].isin(missing)].copy()
+        combined = pd.concat([combined, additions], ignore_index=True)
+        present_states.update(missing)
+
+        if int(combined["arrivals"].sum()) == expected:
+            return combined.sort_values(["state", "date"]).reset_index(drop=True)
+
+    return combined.sort_values(["state", "date"]).reset_index(drop=True)
+
+
 def parse_state_month_bytes(
     source: RPCSource,
     content: bytes,
@@ -846,6 +874,32 @@ def parse_state_month_bytes(
             source_file=source.filename,
             retrieved_at_utc=retrieved_at_utc,
         )
+
+        expected = EXPECTED_RPC_ANNUAL_TOTALS.get(source.fiscal_year)
+        if expected is not None and int(frame["arrivals"].sum()) != expected:
+            rows = pdf_rows(content)
+            alternatives = []
+
+            for parser in (rows_to_state_month, pdf_rows_to_state_month):
+                try:
+                    alternatives.append(
+                        parser(
+                            rows=rows,
+                            fiscal_year=source.fiscal_year,
+                            source_url=source.url,
+                            source_file=source.filename,
+                            retrieved_at_utc=retrieved_at_utc,
+                        )
+                    )
+                except ValueError:
+                    pass
+
+            frame = reconcile_missing_pdf_states(
+                primary=frame,
+                alternatives=alternatives,
+                fiscal_year=source.fiscal_year,
+            )
+
         return validate_pdf_year_total(frame, source.fiscal_year)
 
     rows = pdf_rows(content)
