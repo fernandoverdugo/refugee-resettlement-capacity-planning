@@ -112,21 +112,17 @@ jobs:
 
 
 
-      - name: Inspect FY2024 OCR structure
+
+      - name: Inspect FY2024 updated-report total rows
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq poppler-utils tesseract-ocr
           python - <<'PY'
           import requests
-          from src.ingestion.rpc import discover_rpc_sources
-
-          source = next(
-              source for source in discover_rpc_sources()
-              if source.fiscal_year == 2024
-          )
-          response = requests.get(source.url, timeout=120)
+          url = "https://www.rpc.state.gov/documents/FY%202024%20Arrivals%20by%20State%20and%20Nationality%20as%20of%2030%20Oct%202024_updated.pdf"
+          response = requests.get(url, timeout=120)
           response.raise_for_status()
-          open("/tmp/fy2024.pdf", "wb").write(response.content)
+          open("/tmp/fy2024-updated.pdf", "wb").write(response.content)
           PY
-          pdftoppm -f 1 -singlefile -png -r 220 /tmp/fy2024.pdf /tmp/fy2024-page1
-          tesseract /tmp/fy2024-page1.png stdout --psm 6 2>/dev/null | sed -n '1,100p'
+          pdftoppm -f 1 -singlefile -png -r 220 /tmp/fy2024-updated.pdf /tmp/fy2024-updated-page1
+          tesseract /tmp/fy2024-updated-page1.png stdout --psm 6 2>/dev/null | sed -n '1,90p'
