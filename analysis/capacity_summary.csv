@@ -1,0 +1,4 @@
+scenario,months,total_demand,total_capacity,served_demand,unmet_demand,surplus_capacity,peak_monthly_demand,service_coverage_rate
+lower,6,579.0,1224.0,579.0,0.0,645.0,96.5,1.0
+baseline,6,1158.0,1224.0,1158.0,0.0,66.0,193.0,1.0
+higher,6,1737.0,1224.0,1224.0,513.0,0.0,289.5,0.7046632124352331
