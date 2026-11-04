@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 from statsmodels.tsa.holtwinters import SimpleExpSmoothing
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 
 REQUIRED_COLUMNS = {"date", "arrivals"}
@@ -73,6 +76,31 @@ def simple_exponential_smoothing_forecast(
     return fitted.forecast(horizon).to_numpy(dtype=float)
 
 
+def sarima_forecast(
+    train: pd.Series,
+    horizon: int,
+    order: tuple[int, int, int] = (1, 1, 0),
+    seasonal_order: tuple[int, int, int, int] = (1, 0, 0, 12),
+) -> np.ndarray:
+    if horizon < 1:
+        raise ValueError("horizon must be at least 1")
+    if len(train) < 24:
+        raise ValueError("train must contain at least 24 observations")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        model = SARIMAX(
+            train.asfreq("MS"),
+            order=order,
+            seasonal_order=seasonal_order,
+            enforce_stationarity=False,
+            enforce_invertibility=False,
+        )
+        fitted = model.fit(disp=False)
+
+    return fitted.forecast(horizon).to_numpy(dtype=float)
+
+
 def rolling_origin_backtest(
     series: pd.Series,
     min_train: int = 24,
@@ -95,6 +123,7 @@ def rolling_origin_backtest(
         "simple_exponential_smoothing": lambda train, h: (
             simple_exponential_smoothing_forecast(train, h)
         ),
+        "sarima_110_100_12": lambda train, h: sarima_forecast(train, h),
     }
 
     for origin in range(min_train, len(series)):
