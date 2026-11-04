@@ -355,6 +355,10 @@ def normalize_ocr_number(value: str) -> int | None:
     if not cleaned:
         return None
 
+    allowed = set("0123456789OoIl|Ss-")
+    if any(character not in allowed for character in cleaned):
+        return None
+
     substitutions = str.maketrans(
         {
             "O": "0",
@@ -367,9 +371,8 @@ def normalize_ocr_number(value: str) -> int | None:
         }
     )
     candidate = cleaned.translate(substitutions)
-    candidate = re.sub(r"[^0-9-]", "", candidate)
 
-    if not candidate or candidate == "-":
+    if not re.fullmatch(r"-?\d+", candidate):
         return None
 
     try:
