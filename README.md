@@ -133,6 +133,14 @@ tests/                automated validation
 .github/workflows/    CI and scheduled workflows
 ```
 
+## ACS capacity layer
+
+The planning layer uses U.S. Census Bureau ACS 5-year Data Profiles for state-level socioeconomic, housing, demographic, and language context. The initial feature set includes population, poverty, unemployment, household income, rental vacancy, median rent, renter cost burden, foreign-born population share, and a derived limited-English measure.
+
+Census data queries require a `CENSUS_API_KEY`. Local runs read the key from the environment; GitHub Actions reads it from a repository secret. Variable metadata is validated independently so schema drift can be detected even when a live key is unavailable.
+
+See `docs/ACS_CAPACITY.md` for field definitions and interpretation constraints.
+
 ## Technical principles
 
 - Reproducible public-data ingestion
@@ -146,9 +154,11 @@ tests/                automated validation
 
 ## Status
 
-**Phase 1 — Refugee Processing Center ingestion**
+**Phase 1 — Data engineering**
 
-The ingestion foundation now discovers the official RPC archive, handles legacy XLS/XLSX and modern PDF source formats, preserves source provenance and checksums, and normalizes the reports into separate annual and monthly state-level panels. Live-source integration tests validate representative files from each source era.
+The RPC ingestion layer now discovers the official archive, handles legacy XLS/XLSX and modern PDF source formats, preserves source provenance and checksums, and publishes only analytical grains that pass exact reconciliation checks. A national monthly demand series is validated for FY2021–FY2025, while FY2024 provides a fully reconciled state-month allocation panel.
+
+The ACS capacity layer is also scaffolded with validated variable metadata, reproducible Census API ingestion, tests, documentation, and a secret-backed refresh workflow for state-level socioeconomic, housing, demographic, and language indicators.
 
 ## Technologies
 
