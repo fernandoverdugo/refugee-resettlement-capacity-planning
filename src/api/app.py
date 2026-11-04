@@ -36,7 +36,7 @@ app = FastAPI(
 
 
 class PlanningRequest(BaseModel):
-    reference_monthly_demand: float = Field(default=193.0, ge=0)
+    reference_monthly_demand: float | None = Field(default=None, ge=0)
     horizon_months: int = Field(default=6, ge=1, le=24)
     lower_multiplier: float = Field(default=0.5, ge=0)
     higher_multiplier: float = Field(default=1.5, ge=0)
@@ -67,6 +67,22 @@ def _records(frame: pd.DataFrame) -> list[dict]:
     return clean.where(pd.notna(clean), None).to_dict(orient="records")
 
 
+def _latest_reference(national: pd.DataFrame) -> tuple[pd.Timestamp, float]:
+    dates = pd.to_datetime(national["date"], errors="raise")
+    arrivals = pd.to_numeric(national["arrivals"], errors="raise")
+    latest_index = dates.idxmax()
+    return dates.loc[latest_index], float(arrivals.loc[latest_index])
+
+
+def _planning_basis() -> tuple[pd.Timestamp, float, pd.DataFrame, int]:
+    national = _read_csv(NATIONAL_MONTH_PATH)
+    state_month = _read_csv(STATE_MONTH_PATH)
+    latest_date, latest_arrivals = _latest_reference(national)
+    state_shares = build_state_shares(state_month)
+    share_year = int(state_shares["share_fiscal_year"].iloc[0])
+    return latest_date, latest_arrivals, state_shares, share_year
+
+
 @app.get("/", include_in_schema=False)
 def web_app() -> FileResponse:
     return FileResponse(WEB_APP_PATH)
@@ -81,48 +97,63 @@ def health() -> dict:
     }
 
 
+@app.get("/v1/defaults")
+def planning_defaults() -> dict:
+    latest_date, latest_arrivals, _, share_year = _planning_basis()
+    return {
+        "reference_monthly_demand": latest_arrivals,
+        "reference_observation_date": latest_date.strftime("%Y-%m-%d"),
+        "state_share_fiscal_year": share_year,
+        "horizon_months": 6,
+        "lower_multiplier": 0.5,
+        "higher_multiplier": 1.5,
+        "total_fte": 8.0,
+        "monthly_caseload_per_fte": 30.0,
+        "utilization_rate": 0.85,
+        "monthly_cost_per_fte": 7500.0,
+        "monthly_budget": 60000.0,
+        "ceiling_multiplier": 1.5,
+        "minimum_state_fte": 0.10,
+        "minimum_coverage": 0.0,
+    }
+
+
 @app.get("/v1/forecast/benchmark")
 def forecast_benchmark() -> dict:
-    frame = _read_csv(ANALYSIS_DIR / "forecast_backtest_summary.csv")
-    return {"results": _records(frame)}
+    return {"results": _records(_read_csv(ANALYSIS_DIR / "forecast_backtest_summary.csv"))}
 
 
 @app.get("/v1/scenarios")
 def scenario_summary() -> dict:
-    frame = _read_csv(ANALYSIS_DIR / "demand_scenario_summary.csv")
-    return {"results": _records(frame)}
+    return {"results": _records(_read_csv(ANALYSIS_DIR / "demand_scenario_summary.csv"))}
 
 
 @app.get("/v1/capacity")
 def capacity_summary() -> dict:
-    frame = _read_csv(ANALYSIS_DIR / "capacity_summary.csv")
-    return {"results": _records(frame)}
+    return {"results": _records(_read_csv(ANALYSIS_DIR / "capacity_summary.csv"))}
 
 
 @app.get("/v1/optimization")
 def optimization_summary() -> dict:
-    frame = _read_csv(ANALYSIS_DIR / "constrained_optimization_summary.csv")
-    return {"results": _records(frame)}
+    return {"results": _records(_read_csv(ANALYSIS_DIR / "constrained_optimization_summary.csv"))}
 
 
 @app.post("/v1/plan")
 def create_plan(request: PlanningRequest) -> dict:
-    national = _read_csv(NATIONAL_MONTH_PATH)
-    state_month = _read_csv(STATE_MONTH_PATH)
-
-    latest_date = pd.to_datetime(national["date"], errors="raise").max()
+    latest_date, latest_arrivals, state_shares, share_year = _planning_basis()
+    reference_monthly_demand = (
+        latest_arrivals
+        if request.reference_monthly_demand is None
+        else request.reference_monthly_demand
+    )
     future_dates = pd.date_range(
         latest_date + pd.offsets.MonthBegin(1),
         periods=request.horizon_months,
         freq="MS",
     )
     reference = pd.DataFrame(
-        {
-            "date": future_dates,
-            "forecast": request.reference_monthly_demand,
-        }
+        {"date": future_dates, "forecast": reference_monthly_demand}
     )
-
     scenarios = build_demand_scenarios(
         reference,
         {
@@ -131,11 +162,7 @@ def create_plan(request: PlanningRequest) -> dict:
             "higher": request.higher_multiplier,
         },
     )
-    state_shares = build_state_shares(state_month, fiscal_year=2024)
-    state_scenarios = allocate_scenario_demand_to_states(
-        scenarios,
-        state_shares,
-    )
+    state_scenarios = allocate_scenario_demand_to_states(scenarios, state_shares)
     constraints = build_planning_constraints(
         state_shares,
         total_fte=request.total_fte,
@@ -157,11 +184,14 @@ def create_plan(request: PlanningRequest) -> dict:
     except RuntimeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    summary = summarize_constrained_optimization(optimized)
+    assumptions = request.model_dump()
+    assumptions["reference_monthly_demand"] = reference_monthly_demand
 
     return {
-        "assumptions": request.model_dump(),
+        "assumptions": assumptions,
+        "reference_observation_date": latest_date.strftime("%Y-%m-%d"),
         "reference_start_date": future_dates[0].strftime("%Y-%m-%d"),
         "reference_end_date": future_dates[-1].strftime("%Y-%m-%d"),
-        "scenario_summary": _records(summary),
+        "state_share_fiscal_year": share_year,
+        "scenario_summary": _records(summarize_constrained_optimization(optimized)),
     }
