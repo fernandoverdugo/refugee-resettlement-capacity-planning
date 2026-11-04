@@ -8,6 +8,7 @@ from src.ingestion.rpc import build_rpc_panels, discover_rpc_sources
 MANIFEST_PATH = RAW_DATA_DIR / "rpc_source_manifest.json"
 MONTHLY_OUTPUT_PATH = PROCESSED_DATA_DIR / "rpc_state_month.csv"
 ANNUAL_OUTPUT_PATH = PROCESSED_DATA_DIR / "rpc_state_fiscal_year.csv"
+NATIONAL_MONTHLY_OUTPUT_PATH = PROCESSED_DATA_DIR / "rpc_national_month.csv"
 
 
 def main() -> None:
@@ -32,6 +33,7 @@ def main() -> None:
         manifest_path=MANIFEST_PATH,
         monthly_output_path=MONTHLY_OUTPUT_PATH,
         annual_output_path=ANNUAL_OUTPUT_PATH,
+        national_monthly_output_path=NATIONAL_MONTHLY_OUTPUT_PATH,
     )
 
     print(
@@ -46,6 +48,7 @@ def main() -> None:
                 "monthly_states": int(monthly["state"].nunique()),
                 "monthly_first_date": monthly["date"].min(),
                 "monthly_last_date": monthly["date"].max(),
+                "national_monthly_output": str(NATIONAL_MONTHLY_OUTPUT_PATH),
             },
             indent=2,
         )
