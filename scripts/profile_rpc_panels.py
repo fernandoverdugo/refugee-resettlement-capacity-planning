@@ -169,7 +169,10 @@ def main() -> None:
             "national_monthly_fiscal_years": sorted(
                 int(value) for value in national_monthly["fiscal_year"].unique()
             ),
-            "state_level_pdf_gap": [2021, 2022, 2023],
+            "state_level_pdf_gap": sorted(
+                set(int(value) for value in national_monthly["fiscal_year"].unique())
+                - set(int(value) for value in monthly["fiscal_year"].unique())
+            ),
         },
         "forecasting_diagnostics": {
             "states_with_at_least_48_months": int(
