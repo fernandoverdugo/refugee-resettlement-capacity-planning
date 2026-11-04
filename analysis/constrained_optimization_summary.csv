@@ -1,4 +1,4 @@
-scenario,months,total_demand,served_demand,unmet_demand,allocated_fte_months,total_cost,minimum_coverage,service_coverage_rate
-lower,6,579.0,579.0,0.0,22.705882352941178,170294.11764705883,1.0,1.0
-baseline,6,1158.0,1158.0,0.0,45.411764705882355,340588.23529411765,1.0,1.0
-higher,6,1737.0,1224.0,513.0,48.0,360000.0,0.7046632124352331,0.7046632124352331
+scenario,months,total_demand,served_demand,unmet_demand,allocated_fte_months,total_cost,minimum_coverage,service_coverage_rate,budget_binding_months,fte_binding_months,max_states_at_fte_ceiling
+lower,6,579.0,579.0,0.0,22.705882352941178,170294.11764705883,1.0,1.0,0,0,0
+baseline,6,1158.0,1158.0,0.0,45.411764705882355,340588.23529411765,1.0,1.0,0,0,0
+higher,6,1737.0,1224.0,513.0,48.0,360000.0,0.7046632124352331,0.7046632124352331,6,6,0
