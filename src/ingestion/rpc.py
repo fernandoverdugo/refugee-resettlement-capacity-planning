@@ -355,6 +355,16 @@ AUDITED_FY2024_STATE_TOTAL_ROWS = {
 }
 
 
+EXPECTED_RPC_ANNUAL_TOTALS = {
+    2021: 11411,
+    2022: 25465,
+    2023: 60014,
+    2024: 100034,
+    2025: 38102,
+    2026: 16292,
+}
+
+
 def normalize_ocr_number(value: str) -> int | None:
     cleaned = normalize_cell(value).replace(",", "")
     cleaned = cleaned.strip(" .:;()[]{}")
@@ -793,6 +803,20 @@ def state_fiscal_year_from_monthly(frame: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def validate_pdf_year_total(frame: pd.DataFrame, fiscal_year: int) -> pd.DataFrame:
+    expected = EXPECTED_RPC_ANNUAL_TOTALS.get(fiscal_year)
+    if expected is None:
+        return frame
+
+    observed = int(frame["arrivals"].sum())
+    if observed != expected:
+        raise ValueError(
+            f"FY{fiscal_year} parsed total does not reconcile: "
+            f"observed={observed}, expected={expected}"
+        )
+    return frame
+
+
 def parse_state_month_bytes(
     source: RPCSource,
     content: bytes,
@@ -804,31 +828,50 @@ def parse_state_month_bytes(
             f"source for FY{source.fiscal_year}"
         )
 
+    rows = pdf_rows(content)
+
     try:
-        return pdf_rows_to_state_month(
-            rows=pdf_rows(content),
+        frame = rows_to_state_month(
+            rows=rows,
             fiscal_year=source.fiscal_year,
             source_url=source.url,
             source_file=source.filename,
             retrieved_at_utc=retrieved_at_utc,
         )
+        return validate_pdf_year_total(frame, source.fiscal_year)
     except ValueError:
-        if source.fiscal_year == 2024:
-            return ocr_pdf_total_rows_to_state_month(
-                content=content,
-                fiscal_year=source.fiscal_year,
-                source_url=source.url,
-                source_file=source.filename,
-                retrieved_at_utc=retrieved_at_utc,
-            )
+        pass
 
-        return ocr_pdf_to_state_month(
+    try:
+        frame = pdf_rows_to_state_month(
+            rows=rows,
+            fiscal_year=source.fiscal_year,
+            source_url=source.url,
+            source_file=source.filename,
+            retrieved_at_utc=retrieved_at_utc,
+        )
+        return validate_pdf_year_total(frame, source.fiscal_year)
+    except ValueError:
+        pass
+
+    if source.fiscal_year == 2024:
+        frame = ocr_pdf_total_rows_to_state_month(
             content=content,
             fiscal_year=source.fiscal_year,
             source_url=source.url,
             source_file=source.filename,
             retrieved_at_utc=retrieved_at_utc,
         )
+        return validate_pdf_year_total(frame, source.fiscal_year)
+
+    frame = ocr_pdf_to_state_month(
+        content=content,
+        fiscal_year=source.fiscal_year,
+        source_url=source.url,
+        source_file=source.filename,
+        retrieved_at_utc=retrieved_at_utc,
+    )
+    return validate_pdf_year_total(frame, source.fiscal_year)
 
 
 def parse_state_fiscal_year_bytes(
