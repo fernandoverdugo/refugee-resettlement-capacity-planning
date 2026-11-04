@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: refugee-resettlement-capacity-planner
+    runtime: docker
+    plan: free
+    autoDeployTrigger: commit
+    healthCheckPath: /health
