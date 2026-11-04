@@ -10,6 +10,9 @@ def test_web_app_endpoint():
     response = client.get("/")
     assert response.status_code == 200
     assert "Refugee Resettlement Capacity Planner" in response.text
+    assert "How to use this planner" in response.text
+    assert "Full-time equivalent" in response.text
+    assert "Binding constraint" in response.text
 
 
 def test_health_endpoint():
