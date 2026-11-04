@@ -51,7 +51,7 @@ US_STATES = [
 STATE_PREFIXES = sorted(US_STATES, key=len, reverse=True)
 
 RPC_SOURCE_URL_OVERRIDES = {
-    2024: "https://www.rpc.state.gov/documents/FY%202024%20Arrivals%20by%20State%20and%20Nationality%20as%20of%2030%20Sep%202024.pdf",
+    2024: "https://www.rpc.state.gov/documents/FY%202024%20Arrivals%20by%20State%20and%20Nationality%20as%20of%2030%20Oct%202024_updated.pdf",
 }
 
 
@@ -381,6 +381,174 @@ def normalize_ocr_number(value: str) -> int | None:
         return None
 
 
+
+def ocr_pdf_total_rows_to_state_month(
+    content: bytes,
+    fiscal_year: int,
+    source_url: str,
+    source_file: str,
+    retrieved_at_utc: str,
+) -> pd.DataFrame:
+    if shutil.which("tesseract") is None:
+        raise RuntimeError(
+            "Tesseract is required for OCR fallback on malformed RPC PDFs."
+        )
+
+    candidates_by_state: dict[str, list[tuple[list[int], int]]] = {}
+
+    for scale in (3.0, 4.0):
+        document = fitz.open(stream=content, filetype="pdf")
+
+        for page in document:
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+            image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+            data = pytesseract.image_to_data(
+                image,
+                config="--psm 6",
+                output_type=pytesseract.Output.DATAFRAME,
+            )
+            data = data.dropna(subset=["text"]).copy()
+            data["text"] = data["text"].astype(str).str.strip()
+            data = data[data["text"] != ""]
+
+            month_centers: dict[str, float] = {}
+            for month in MONTHS:
+                candidates = data[
+                    data["text"].str.lower().str.replace(".", "", regex=False)
+                    == month.lower()
+                ]
+                if not candidates.empty:
+                    row = candidates.iloc[0]
+                    month_centers[month] = float(row["left"] + row["width"] / 2)
+
+            if len(month_centers) != 12:
+                continue
+
+            ordered_centers = [month_centers[month] for month in MONTHS]
+            spacing = float(np.median(np.diff(ordered_centers)))
+            state_boundary = ordered_centers[0] * 0.52
+            grand_total_center = ordered_centers[-1] + spacing * 1.12
+
+            header_top = float(
+                data[
+                    data["text"].str.lower().str.replace(".", "", regex=False)
+                    .isin([month.lower() for month in MONTHS])
+                ]["top"].median()
+            )
+            body_top_min = header_top + 8
+            body_top_max = image.height * 0.88
+
+            line_columns = ["block_num", "par_num", "line_num"]
+            for _, line in data.groupby(line_columns, sort=False):
+                line = line.sort_values("left")
+                line_top = float(line["top"].median())
+                if not (body_top_min <= line_top <= body_top_max):
+                    continue
+
+                left_words = line[
+                    (line["left"] + line["width"] / 2) < ordered_centers[0]
+                ]
+                state_words = left_words[
+                    (left_words["left"] + left_words["width"] / 2) < state_boundary
+                ]
+                state_text = " ".join(state_words["text"].tolist())
+                state = state_from_pdf_cell(state_text)
+                if not state:
+                    continue
+
+                nationality_words = left_words[
+                    (left_words["left"] + left_words["width"] / 2) >= state_boundary
+                ]
+                if "total" not in {
+                    str(value).strip().lower()
+                    for value in nationality_words["text"].tolist()
+                }:
+                    continue
+
+                monthly = [0] * 12
+                printed_total = None
+
+                for _, token in line.iterrows():
+                    center = float(token["left"] + token["width"] / 2)
+                    value = normalize_ocr_number(token["text"])
+                    if value is None:
+                        continue
+
+                    distances = [abs(center - x) for x in ordered_centers]
+                    nearest_index = int(np.argmin(distances))
+
+                    if distances[nearest_index] <= spacing * 0.43:
+                        monthly[nearest_index] = value
+                        continue
+
+                    if abs(center - grand_total_center) <= spacing * 0.58:
+                        printed_total = value
+
+                if printed_total is None:
+                    continue
+
+                if sum(monthly) != printed_total:
+                    continue
+
+                candidates_by_state.setdefault(state, []).append(
+                    (monthly, printed_total)
+                )
+
+    chosen: dict[str, tuple[list[int], int]] = {}
+
+    for state, candidates in candidates_by_state.items():
+        counts: dict[tuple[int, ...], int] = {}
+        totals: dict[tuple[int, ...], int] = {}
+
+        for monthly, printed_total in candidates:
+            key = tuple(monthly)
+            counts[key] = counts.get(key, 0) + 1
+            totals[key] = printed_total
+
+        best = max(counts, key=lambda key: (counts[key], totals[key]))
+        chosen[state] = (list(best), totals[best])
+
+    output = []
+    for state, (monthly, _) in sorted(chosen.items()):
+        for month, arrivals in zip(MONTHS, monthly):
+            calendar_year = fiscal_year_for_month(fiscal_year, month)
+            output.append(
+                {
+                    "state": state,
+                    "date": f"{calendar_year:04d}-{MONTH_NUMBER[month]:02d}-01",
+                    "calendar_year": calendar_year,
+                    "calendar_month": MONTH_NUMBER[month],
+                    "fiscal_year": fiscal_year,
+                    "arrivals": arrivals,
+                    "source_report": source_file,
+                    "source_url": source_url,
+                    "retrieved_at_utc": retrieved_at_utc,
+                }
+            )
+
+    frame = pd.DataFrame(output)
+    if frame.empty:
+        raise ValueError(
+            f"No checksum-valid OCR state totals parsed for FY{fiscal_year}"
+        )
+
+    observed = frame.groupby("calendar_month")["arrivals"].sum().to_dict()
+    expected = {
+        MONTH_NUMBER[month]: value
+        for month, value in OCR_MONTH_TOTALS_2024.items()
+    }
+
+    if observed != expected:
+        missing_states = sorted(set(US_STATES) - set(frame["state"]))
+        raise ValueError(
+            "FY2024 checksum-valid state totals do not reconcile: "
+            f"states={frame['state'].nunique()}, missing={missing_states}, "
+            f"observed={observed}, expected={expected}"
+        )
+
+    return frame.sort_values(["state", "date"]).reset_index(drop=True)
+
+
 def ocr_pdf_to_state_month(
     content: bytes,
     fiscal_year: int,
@@ -634,6 +802,15 @@ def parse_state_month_bytes(
             retrieved_at_utc=retrieved_at_utc,
         )
     except ValueError:
+        if source.fiscal_year == 2024:
+            return ocr_pdf_total_rows_to_state_month(
+                content=content,
+                fiscal_year=source.fiscal_year,
+                source_url=source.url,
+                source_file=source.filename,
+                retrieved_at_utc=retrieved_at_utc,
+            )
+
         return ocr_pdf_to_state_month(
             content=content,
             fiscal_year=source.fiscal_year,
