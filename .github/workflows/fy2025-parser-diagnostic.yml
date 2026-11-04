@@ -1,0 +1,59 @@
+name: Diagnose FY2025 parser
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/fy2025-parser-diagnostic.yml"
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: python -m pip install -r requirements.txt
+      - run: |
+          python - <<'PY'
+          from datetime import datetime, timezone
+          import requests
+          from src.ingestion.rpc import (
+              discover_rpc_sources,
+              pdf_rows,
+              pdf_rows_to_state_month,
+              rows_to_state_month,
+          )
+
+          source = next(
+              s for s in discover_rpc_sources()
+              if s.fiscal_year == 2025
+          )
+          response = requests.get(source.url, timeout=120)
+          response.raise_for_status()
+          rows = pdf_rows(response.content)
+          stamp = datetime.now(timezone.utc).isoformat()
+
+          for name, parser in [
+              ("explicit", rows_to_state_month),
+              ("nationality_sum", pdf_rows_to_state_month),
+          ]:
+              try:
+                  frame = parser(
+                      rows=rows,
+                      fiscal_year=2025,
+                      source_url=source.url,
+                      source_file=source.filename,
+                      retrieved_at_utc=stamp,
+                  )
+                  print(name, {
+                      "states": int(frame["state"].nunique()),
+                      "rows": len(frame),
+                      "total": int(frame["arrivals"].sum()),
+                      "month_totals": frame.groupby("calendar_month")["arrivals"].sum().to_dict(),
+                  })
+              except Exception as exc:
+                  print(name, "ERROR", repr(exc))
+          PY
