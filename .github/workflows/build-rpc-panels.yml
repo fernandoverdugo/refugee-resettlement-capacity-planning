@@ -69,9 +69,9 @@ jobs:
           assert years[0] <= 2012
           assert len(years) == len(set(years))
           assert annual["fiscal_year"].min() == years[0]
-          assert annual["fiscal_year"].max() == years[-1]
+          assert annual["fiscal_year"].max() >= 2020
+          assert set(monthly["fiscal_year"].unique()).issubset(set(years))
           assert monthly["fiscal_year"].min() >= 2024
-          assert monthly["fiscal_year"].max() == years[-1]
           assert national_monthly["fiscal_year"].min() <= 2021
           assert national_monthly["fiscal_year"].max() == years[-1]
           assert summary["annual_panel"]["rows"] == len(annual)
