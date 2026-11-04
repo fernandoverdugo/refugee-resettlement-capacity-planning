@@ -40,9 +40,17 @@ A level-only exponential smoothing model is re-estimated at every forecast origi
 
 ### SARIMA
 
-The first seasonal autoregressive challenger is SARIMA(1,1,0)×(1,0,0,12). It combines first differencing, short-run autoregression, and a 12-month seasonal autoregressive term. The specification is intentionally compact because the available monthly history is short.
+The seasonal autoregressive challenger is SARIMA(1,1,0)×(1,0,0,12). It combines first differencing, short-run autoregression, and a 12-month seasonal autoregressive term. The specification is intentionally compact because the available monthly history is short.
 
-These models provide increasingly flexible benchmarks while remaining interpretable. More complex models should only be retained if they demonstrate consistent out-of-sample improvement.
+### Gradient boosting
+
+The machine-learning challenger is a recursive gradient-boosting regressor using only information available at each forecast origin. Features include:
+
+- lags 1, 2, 3, and 12
+- trailing 3-month and 6-month means
+- sine/cosine encodings of calendar month
+
+The model uses shallow trees, a low learning rate, Huber loss, and a fixed random seed. Multi-month predictions are produced recursively, so no future observed arrivals are used as lag features.
 
 ## Metrics
 
@@ -64,21 +72,29 @@ Using the FY2021–FY2025 national monthly panel with a 24-month minimum trainin
 | Naive | 1 month | 1,680 | 2,908 | 30.5% |
 | Simple exponential smoothing | 1 month | 1,927 | 3,108 | 35.0% |
 | SARIMA | 1 month | 1,931 | 3,146 | 35.1% |
+| Gradient boosting | 1 month | 2,012 | 3,003 | 36.6% |
 | Seasonal naive | 1 month | 4,238 | 5,415 | 77.0% |
 | Simple exponential smoothing | 2 months | 2,462 | 3,777 | 44.0% |
 | Naive | 2 months | 2,466 | 3,975 | 44.0% |
 | SARIMA | 2 months | 2,665 | 4,217 | 47.6% |
+| Gradient boosting | 2 months | 2,729 | 3,974 | 48.7% |
 | Seasonal naive | 2 months | 4,309 | 5,483 | 76.9% |
 | Naive | 3 months | 2,576 | 3,971 | 45.2% |
 | Simple exponential smoothing | 3 months | 2,646 | 3,912 | 46.4% |
 | SARIMA | 3 months | 2,765 | 4,134 | 48.5% |
+| Gradient boosting | 3 months | 2,821 | 3,930 | 49.5% |
 | Seasonal naive | 3 months | 4,418 | 5,563 | 77.5% |
 
-The naive model remains the strongest overall benchmark. Simple exponential smoothing and SARIMA are close at the one-month horizon but do not consistently improve on the last-observation baseline. Seasonal naive performs substantially worse.
+The naive model remains the strongest overall benchmark. Neither the statistical challengers nor the machine-learning challenger consistently improve on the last-observation baseline.
 
-This pattern is consistent with a series affected by large level shifts and abrupt policy-driven changes. The sharp decline in arrivals during FY2025 is especially difficult for models that rely on historical seasonal structure.
+That result is substantively important. The national series contains large level shifts and abrupt policy-driven changes, including the sharp FY2025 decline. Models trained only on historical arrivals cannot anticipate a policy regime change that has no analogue in their lagged inputs.
 
-The result should not be interpreted as evidence that forecasting is impossible. It means future models need to be evaluated against a strong adaptive baseline and may benefit from explicit regime, policy, or scenario information rather than additional time-series complexity alone.
+The benchmark therefore supports a two-part design for the planning platform:
+
+1. use empirically validated time-series forecasts as a baseline;
+2. allow explicit scenario assumptions to modify that baseline when policy conditions change.
+
+This is preferable to presenting a more complicated model as inherently more accurate.
 
 ## Reproduction
 
@@ -97,4 +113,4 @@ analysis/forecast_backtest_summary.csv
 
 ## Next modeling step
 
-The next challenger is lag-based gradient boosting using only information available at each forecast origin. Given the observed structural breaks, the planning system should also support scenario-based forecasts that can override purely historical extrapolation when policy conditions change.
+The next milestone is scenario-aware forecasting. Instead of adding complexity for its own sake, the project will formalize baseline, lower-demand, and higher-demand assumptions that can feed the capacity and optimization layers while preserving the empirical benchmark as the reference forecast.
