@@ -206,7 +206,13 @@ Lower and baseline scenarios achieve full coverage. In the higher-demand scenari
 
 See `docs/OPTIMIZATION.md`, `analysis/optimization_state_shares.csv`, and `analysis/optimization_summary.csv` for assumptions and results.
 
-The next optimization milestone is to introduce richer constraints such as state-specific staffing ceilings, budget costs, minimum coverage requirements, and contextual capacity indicators.
+The richer constrained optimizer is now implemented with state-specific staffing ceilings, per-FTE costs, a monthly budget, a global FTE cap, and optional minimum coverage requirements. Under the default hypothetical cost assumptions, the higher-demand scenario uses the full $60,000 monthly staffing budget and still reaches only 70.5% coverage; lower and baseline demand remain fully serviceable.
+
+ACS-based contextual constraints are intentionally deferred because a validated `data/processed/acs_state_capacity.csv` is not currently committed. The optimizer will not invent empirical capacity weights from unavailable data.
+
+See `docs/CONSTRAINED_OPTIMIZATION.md` and `analysis/constrained_optimization_summary.csv` for the extended formulation and benchmark outputs.
+
+The next major milestone is Phase 5: expose the forecast, scenarios, capacity assumptions, and optimization outputs through a small API and interactive decision-support interface.
 
 ## Technologies
 
