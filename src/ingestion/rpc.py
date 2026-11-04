@@ -811,9 +811,18 @@ def validate_pdf_year_total(frame: pd.DataFrame, fiscal_year: int) -> pd.DataFra
 
     observed = int(frame["arrivals"].sum())
     if observed != expected:
+        observed_states = set(frame["state"])
+        missing_states = sorted(set(US_STATES) - observed_states)
+        month_totals = (
+            frame.groupby("calendar_month")["arrivals"].sum().to_dict()
+            if "calendar_month" in frame.columns
+            else {}
+        )
         raise ValueError(
             f"FY{fiscal_year} parsed total does not reconcile: "
-            f"observed={observed}, expected={expected}"
+            f"observed={observed}, expected={expected}, "
+            f"states={len(observed_states)}, missing={missing_states}, "
+            f"month_totals={month_totals}"
         )
     return frame
 
