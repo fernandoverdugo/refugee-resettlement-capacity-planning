@@ -398,9 +398,43 @@ def normalize_ocr_number(value: str) -> int | None:
 
 
 
+
+def pdf_explicit_state_annual_totals(rows: list[list]) -> dict[str, int]:
+    totals: dict[str, int] = {}
+
+    for row in rows:
+        normalized = [normalize_cell(value) for value in row]
+        if not normalized:
+            continue
+
+        state = state_from_pdf_cell(normalized[0])
+        if not state:
+            continue
+
+        early_cells = {
+            value.lower()
+            for value in normalized[1:4]
+            if value
+        }
+        if "total" not in early_cells:
+            continue
+
+        numeric_values: list[int] = []
+        for value in normalized[1:]:
+            cleaned = value.replace(",", "").strip()
+            if re.fullmatch(r"-?\d+(?:\.0+)?", cleaned):
+                numeric_values.append(int(float(cleaned)))
+
+        if numeric_values:
+            totals[state] = numeric_values[-1]
+
+    return totals
+
+
 def select_ocr_state_candidates(
     candidates_by_state: dict[str, list[tuple[list[int], int]]],
     fiscal_year: int,
+    reference_annual_totals: dict[str, int] | None = None,
 ) -> dict[str, tuple[list[int], int]]:
     audited = AUDITED_OCR_STATE_TOTAL_ROWS.get(fiscal_year, {})
     candidate_counts: dict[str, dict[tuple[int, ...], int]] = {}
@@ -410,6 +444,15 @@ def select_ocr_state_candidates(
         for monthly, printed_total in candidates_by_state.get(state, []):
             if sum(monthly) != printed_total:
                 continue
+
+            reference_total = (
+                reference_annual_totals.get(state)
+                if reference_annual_totals
+                else None
+            )
+            if reference_total is not None and printed_total != reference_total:
+                continue
+
             key = tuple(int(value) for value in monthly)
             candidate_counts[state][key] = candidate_counts[state].get(key, 0) + 1
 
@@ -421,6 +464,16 @@ def select_ocr_state_candidates(
             )
 
         if not candidate_counts[state]:
+            reference_total = (
+                reference_annual_totals.get(state)
+                if reference_annual_totals
+                else None
+            )
+            if reference_total not in (None, 0):
+                raise ValueError(
+                    f"FY{fiscal_year} has no checksum-valid OCR candidate for "
+                    f"{state}; official state total={reference_total}"
+                )
             candidate_counts[state][tuple([0] * 12)] = 1
 
     expected = EXPECTED_RPC_MONTHLY_TOTALS.get(fiscal_year)
@@ -603,9 +656,13 @@ def ocr_pdf_total_rows_to_state_month(
                     (monthly, printed_total)
                 )
 
+    reference_annual_totals = pdf_explicit_state_annual_totals(
+        pdf_rows(content)
+    )
     chosen = select_ocr_state_candidates(
         candidates_by_state,
         fiscal_year,
+        reference_annual_totals=reference_annual_totals,
     )
 
     output = []
