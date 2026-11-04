@@ -10,6 +10,7 @@ from src.config import ANALYSIS_DIR, PROCESSED_DATA_DIR
 
 MONTHLY_PATH = PROCESSED_DATA_DIR / "rpc_state_month.csv"
 ANNUAL_PATH = PROCESSED_DATA_DIR / "rpc_state_fiscal_year.csv"
+NATIONAL_MONTHLY_PATH = PROCESSED_DATA_DIR / "rpc_national_month.csv"
 SUMMARY_PATH = ANALYSIS_DIR / "rpc_profile_summary.json"
 STATE_SUMMARY_PATH = ANALYSIS_DIR / "rpc_state_summary.csv"
 MONTH_SUMMARY_PATH = ANALYSIS_DIR / "rpc_month_summary.csv"
@@ -18,6 +19,7 @@ MONTH_SUMMARY_PATH = ANALYSIS_DIR / "rpc_month_summary.csv"
 def main() -> None:
     monthly = pd.read_csv(MONTHLY_PATH, parse_dates=["date"])
     annual = pd.read_csv(ANNUAL_PATH)
+    national_monthly = pd.read_csv(NATIONAL_MONTHLY_PATH, parse_dates=["date"])
 
     state_summary = (
         monthly.groupby("state")
@@ -88,6 +90,25 @@ def main() -> None:
                 str(int(row.calendar_year)): int(row.arrivals)
                 for row in monthly_year_totals.itertuples()
             },
+        },
+        "national_monthly_panel": {
+            "rows": int(len(national_monthly)),
+            "first_date": national_monthly["date"].min().date().isoformat(),
+            "last_date": national_monthly["date"].max().date().isoformat(),
+            "fiscal_years": int(national_monthly["fiscal_year"].nunique()),
+            "total_arrivals": int(national_monthly["arrivals"].sum()),
+        },
+        "coverage": {
+            "state_annual_fiscal_years": sorted(
+                int(value) for value in annual["fiscal_year"].unique()
+            ),
+            "state_monthly_fiscal_years": sorted(
+                int(value) for value in monthly["fiscal_year"].unique()
+            ),
+            "national_monthly_fiscal_years": sorted(
+                int(value) for value in national_monthly["fiscal_year"].unique()
+            ),
+            "state_level_pdf_gap": [2021, 2022, 2023],
         },
         "diagnostics": {
             "monthly_arrival_p50": float(np.percentile(monthly["arrivals"], 50)),
