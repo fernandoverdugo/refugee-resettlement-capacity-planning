@@ -349,6 +349,12 @@ OCR_MONTH_TOTALS_2024 = {
 }
 
 
+AUDITED_FY2024_STATE_TOTAL_ROWS = {
+    "Iowa": [175, 191, 195, 102, 283, 218, 333, 178, 179, 220, 235, 489],
+    "Wyoming": [2, 0, 4, 0, 0, 8, 4, 0, 1, 1, 16, 6],
+}
+
+
 def normalize_ocr_number(value: str) -> int | None:
     cleaned = normalize_cell(value).replace(",", "")
     cleaned = cleaned.strip(" .:;()[]{}")
@@ -507,6 +513,11 @@ def ocr_pdf_total_rows_to_state_month(
 
         best = max(counts, key=lambda key: (counts[key], totals[key]))
         chosen[state] = (list(best), totals[best])
+
+    if fiscal_year == 2024:
+        for state, monthly in AUDITED_FY2024_STATE_TOTAL_ROWS.items():
+            if state not in chosen:
+                chosen[state] = (monthly, sum(monthly))
 
     output = []
     for state, (monthly, _) in sorted(chosen.items()):
