@@ -4,6 +4,12 @@ A reproducible decision-support platform for forecasting refugee-arrival demand,
 
 > **Scope:** This project does not recommend refugee placement or make individual-level decisions. Forecasts and optimization outputs are planning inputs for staffing, funding, and service-capacity analysis.
 
+## Live demo
+
+**Interactive planner:** https://refugee-resettlement-capacity-planner.onrender.com
+
+The deployed application exposes the browser-based planner at the root URL, FastAPI documentation at `/docs`, and a health endpoint at `/health`.
+
 ## What the project does
 
 - Ingests and validates U.S. Refugee Processing Center arrival reports across changing XLS, XLSX, and PDF formats.
@@ -179,7 +185,7 @@ tests/                automated tests
 | Fair and constrained optimization | ✅ Implemented |
 | FastAPI + interactive planner | ✅ Implemented |
 | Docker deployment package | ✅ Implemented |
-| Live public deployment | ⏳ Pending |
+| Live public deployment | ✅ Live |
 | ACS contextual optimization | ⏳ Deferred until validated processed ACS output is available |
 
 ## Technical principles
