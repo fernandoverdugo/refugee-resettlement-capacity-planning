@@ -113,6 +113,11 @@ def optimize_constrained_capacity(
         frame["monthly_cost"] = 0.0
         frame["coverage_rate"] = 1.0
         frame["minimum_coverage_achieved"] = 1.0
+        frame["monthly_budget_limit"] = float(monthly_budget)
+        frame["total_fte_limit"] = float(total_fte)
+        frame["budget_binding"] = False
+        frame["fte_binding"] = False
+        frame["at_fte_ceiling"] = False
         return frame
 
     if capacity_per_fte <= 0 and demand.sum() > 0:
@@ -200,6 +205,19 @@ def optimize_constrained_capacity(
         1.0,
     )
     frame["minimum_coverage_achieved"] = achieved
+    frame["monthly_budget_limit"] = float(monthly_budget)
+    frame["total_fte_limit"] = float(total_fte)
+    frame["budget_binding"] = bool(
+        np.isclose(frame["monthly_cost"].sum(), monthly_budget, atol=1e-7)
+    )
+    frame["fte_binding"] = bool(
+        np.isclose(frame["allocated_fte"].sum(), total_fte, atol=1e-7)
+    )
+    frame["at_fte_ceiling"] = np.isclose(
+        frame["allocated_fte"].to_numpy(dtype=float),
+        max_fte,
+        atol=1e-7,
+    )
 
     return frame
 
@@ -252,14 +270,9 @@ def optimize_all_constrained_scenarios(
 
 def summarize_constrained_optimization(results: pd.DataFrame) -> pd.DataFrame:
     required = {
-        "scenario",
-        "date",
-        "state_demand",
-        "served_demand",
-        "unmet_demand",
-        "allocated_fte",
-        "monthly_cost",
-        "minimum_coverage_achieved",
+        "scenario", "date", "state_demand", "served_demand", "unmet_demand",
+        "allocated_fte", "monthly_cost", "minimum_coverage_achieved",
+        "budget_binding", "fte_binding", "at_fte_ceiling",
     }
     missing = required.difference(results.columns)
     if missing:
@@ -286,4 +299,21 @@ def summarize_constrained_optimization(results: pd.DataFrame) -> pd.DataFrame:
         summary["served_demand"] / summary["total_demand"],
         1.0,
     )
-    return summary
+
+    monthly = (
+        results.groupby(["scenario", "date"], as_index=False)
+        .agg(
+            budget_binding=("budget_binding", "max"),
+            fte_binding=("fte_binding", "max"),
+            states_at_fte_ceiling=("at_fte_ceiling", "sum"),
+        )
+    )
+    diagnostics = (
+        monthly.groupby("scenario", as_index=False)
+        .agg(
+            budget_binding_months=("budget_binding", "sum"),
+            fte_binding_months=("fte_binding", "sum"),
+            max_states_at_fte_ceiling=("states_at_fte_ceiling", "max"),
+        )
+    )
+    return summary.merge(diagnostics, on="scenario", how="left")
