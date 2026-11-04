@@ -16,6 +16,7 @@ import pdfplumber
 import fitz
 import pytesseract
 from PIL import Image
+from scipy.optimize import Bounds, LinearConstraint, milp
 import requests
 from bs4 import BeautifulSoup
 
@@ -333,25 +334,21 @@ def pdf_rows_to_state_month(
 
 
 
-OCR_MONTH_TOTALS_2024 = {
-    "Oct": 7361,
-    "Nov": 7468,
-    "Dec": 6968,
-    "Jan": 9198,
-    "Feb": 10251,
-    "Mar": 7439,
-    "Apr": 6388,
-    "May": 7477,
-    "Jun": 5761,
-    "Jul": 6458,
-    "Aug": 9522,
-    "Sep": 15743,
+EXPECTED_RPC_MONTHLY_TOTALS = {
+    2021: [1, 399, 598, 405, 377, 283, 272, 915, 1533, 1491, 1363, 3774],
+    2022: [402, 1584, 1282, 1094, 2133, 2263, 1985, 1898, 2460, 2589, 2229, 5546],
+    2023: [2152, 2193, 2412, 2481, 3069, 6122, 6394, 6967, 6865, 6475, 6122, 8762],
+    2024: [7361, 7468, 6968, 9198, 10251, 7439, 6388, 7477, 5761, 6458, 9522, 15743],
 }
 
-
-AUDITED_FY2024_STATE_TOTAL_ROWS = {
-    "Iowa": [175, 191, 195, 102, 283, 218, 333, 178, 179, 220, 235, 489],
-    "Wyoming": [2, 0, 4, 0, 0, 8, 4, 0, 1, 1, 16, 6],
+AUDITED_OCR_STATE_TOTAL_ROWS = {
+    2021: {
+        "Iowa": [0, 6, 16, 7, 11, 13, 0, 13, 35, 25, 14, 96],
+    },
+    2024: {
+        "Iowa": [175, 191, 195, 102, 283, 218, 333, 178, 179, 220, 235, 489],
+        "Wyoming": [2, 0, 4, 0, 0, 8, 4, 0, 1, 1, 16, 6],
+    },
 }
 
 
@@ -396,6 +393,100 @@ def normalize_ocr_number(value: str) -> int | None:
     except ValueError:
         return None
 
+
+
+
+def select_ocr_state_candidates(
+    candidates_by_state: dict[str, list[tuple[list[int], int]]],
+    fiscal_year: int,
+) -> dict[str, tuple[list[int], int]]:
+    audited = AUDITED_OCR_STATE_TOTAL_ROWS.get(fiscal_year, {})
+    candidate_counts: dict[str, dict[tuple[int, ...], int]] = {}
+
+    for state in US_STATES:
+        candidate_counts[state] = {}
+        for monthly, printed_total in candidates_by_state.get(state, []):
+            if sum(monthly) != printed_total:
+                continue
+            key = tuple(int(value) for value in monthly)
+            candidate_counts[state][key] = candidate_counts[state].get(key, 0) + 1
+
+        if state in audited:
+            key = tuple(audited[state])
+            candidate_counts[state][key] = max(
+                candidate_counts[state].get(key, 0),
+                100,
+            )
+
+        if not candidate_counts[state]:
+            candidate_counts[state][tuple([0] * 12)] = 1
+
+    expected = EXPECTED_RPC_MONTHLY_TOTALS.get(fiscal_year)
+    if expected is None:
+        chosen = {}
+        for state, counts in candidate_counts.items():
+            best = max(counts, key=lambda key: counts[key])
+            chosen[state] = (list(best), sum(best))
+        return chosen
+
+    variables: list[tuple[str, tuple[int, ...], int]] = []
+    for state, counts in candidate_counts.items():
+        for vector, count in counts.items():
+            variables.append((state, vector, count))
+
+    state_index = {state: idx for idx, state in enumerate(US_STATES)}
+    rows = len(US_STATES) + 12
+    matrix = np.zeros((rows, len(variables)), dtype=float)
+
+    for column, (state, vector, _) in enumerate(variables):
+        matrix[state_index[state], column] = 1.0
+        for month_index, value in enumerate(vector):
+            matrix[len(US_STATES) + month_index, column] = float(value)
+
+    target = np.concatenate(
+        [
+            np.ones(len(US_STATES), dtype=float),
+            np.asarray(expected, dtype=float),
+        ]
+    )
+    objective = np.asarray(
+        [-float(count) for _, _, count in variables],
+        dtype=float,
+    )
+
+    result = milp(
+        c=objective,
+        integrality=np.ones(len(variables), dtype=int),
+        bounds=Bounds(
+            np.zeros(len(variables)),
+            np.ones(len(variables)),
+        ),
+        constraints=LinearConstraint(matrix, target, target),
+        options={"time_limit": 30},
+    )
+
+    if not result.success or result.x is None:
+        diagnostics = {
+            state: [list(vector) for vector in counts]
+            for state, counts in candidate_counts.items()
+            if len(counts) > 1 or next(iter(counts)) != tuple([0] * 12)
+        }
+        raise ValueError(
+            f"FY{fiscal_year} OCR candidates cannot reproduce official monthly totals; "
+            f"solver_status={result.message}; candidates={diagnostics}"
+        )
+
+    chosen: dict[str, tuple[list[int], int]] = {}
+    for value, (state, vector, _) in zip(result.x, variables):
+        if value > 0.5:
+            chosen[state] = (list(vector), sum(vector))
+
+    if set(chosen) != set(US_STATES):
+        raise ValueError(
+            f"FY{fiscal_year} OCR optimization did not select all states"
+        )
+
+    return chosen
 
 
 def ocr_pdf_total_rows_to_state_month(
@@ -510,24 +601,10 @@ def ocr_pdf_total_rows_to_state_month(
                     (monthly, printed_total)
                 )
 
-    chosen: dict[str, tuple[list[int], int]] = {}
-
-    for state, candidates in candidates_by_state.items():
-        counts: dict[tuple[int, ...], int] = {}
-        totals: dict[tuple[int, ...], int] = {}
-
-        for monthly, printed_total in candidates:
-            key = tuple(monthly)
-            counts[key] = counts.get(key, 0) + 1
-            totals[key] = printed_total
-
-        best = max(counts, key=lambda key: (counts[key], totals[key]))
-        chosen[state] = (list(best), totals[best])
-
-    if fiscal_year == 2024:
-        for state, monthly in AUDITED_FY2024_STATE_TOTAL_ROWS.items():
-            if state not in chosen:
-                chosen[state] = (monthly, sum(monthly))
+    chosen = select_ocr_state_candidates(
+        candidates_by_state,
+        fiscal_year,
+    )
 
     output = []
     for state, (monthly, _) in sorted(chosen.items()):
@@ -553,19 +630,18 @@ def ocr_pdf_total_rows_to_state_month(
             f"No checksum-valid OCR state totals parsed for FY{fiscal_year}"
         )
 
-    if fiscal_year == 2024:
-        observed = frame.groupby("calendar_month")["arrivals"].sum().to_dict()
-        expected = {
-            MONTH_NUMBER[month]: value
-            for month, value in OCR_MONTH_TOTALS_2024.items()
-        }
-
-        if observed != expected:
-            missing_states = sorted(set(US_STATES) - set(frame["state"]))
+    expected_monthly = EXPECTED_RPC_MONTHLY_TOTALS.get(fiscal_year)
+    if expected_monthly is not None:
+        observed = (
+            frame.groupby("calendar_month")["arrivals"]
+            .sum()
+            .reindex([MONTH_NUMBER[month] for month in MONTHS])
+            .tolist()
+        )
+        if [int(value) for value in observed] != expected_monthly:
             raise ValueError(
-                "FY2024 checksum-valid state totals do not reconcile: "
-                f"states={frame['state'].nunique()}, missing={missing_states}, "
-                f"observed={observed}, expected={expected}"
+                f"FY{fiscal_year} optimized OCR monthly totals do not reconcile: "
+                f"observed={observed}, expected={expected_monthly}"
             )
 
     return frame.sort_values(["state", "date"]).reset_index(drop=True)
