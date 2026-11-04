@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from src.optimization.allocation import (
@@ -22,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ANALYSIS_DIR = ROOT / "analysis"
 STATE_MONTH_PATH = ROOT / "data" / "processed" / "rpc_state_month.csv"
 NATIONAL_MONTH_PATH = ROOT / "data" / "processed" / "rpc_national_month.csv"
+WEB_APP_PATH = Path(__file__).resolve().parent / "static" / "index.html"
 
 app = FastAPI(
     title="Refugee Resettlement Capacity Planning API",
@@ -63,6 +65,11 @@ def _records(frame: pd.DataFrame) -> list[dict]:
         if pd.api.types.is_datetime64_any_dtype(clean[column]):
             clean[column] = clean[column].dt.strftime("%Y-%m-%d")
     return clean.where(pd.notna(clean), None).to_dict(orient="records")
+
+
+@app.get("/", include_in_schema=False)
+def web_app() -> FileResponse:
+    return FileResponse(WEB_APP_PATH)
 
 
 @app.get("/health")
