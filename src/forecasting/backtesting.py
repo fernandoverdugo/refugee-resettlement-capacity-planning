@@ -4,6 +4,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import GradientBoostingRegressor
 from statsmodels.tsa.holtwinters import SimpleExpSmoothing
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
@@ -101,6 +102,79 @@ def sarima_forecast(
     return fitted.forecast(horizon).to_numpy(dtype=float)
 
 
+def _gradient_boosting_training_data(
+    train: pd.Series,
+) -> tuple[np.ndarray, np.ndarray]:
+    values = train.to_numpy(dtype=float)
+    features = []
+    targets = []
+
+    for i in range(12, len(values)):
+        date = train.index[i]
+        features.append(
+            [
+                values[i - 1],
+                values[i - 2],
+                values[i - 3],
+                values[i - 12],
+                float(np.mean(values[i - 3 : i])),
+                float(np.mean(values[i - 6 : i])),
+                float(np.sin(2 * np.pi * date.month / 12)),
+                float(np.cos(2 * np.pi * date.month / 12)),
+            ]
+        )
+        targets.append(values[i])
+
+    return np.asarray(features, dtype=float), np.asarray(targets, dtype=float)
+
+
+def gradient_boosting_forecast(
+    train: pd.Series,
+    horizon: int,
+) -> np.ndarray:
+    if horizon < 1:
+        raise ValueError("horizon must be at least 1")
+    if len(train) < 24:
+        raise ValueError("train must contain at least 24 observations")
+
+    x_train, y_train = _gradient_boosting_training_data(train)
+    model = GradientBoostingRegressor(
+        n_estimators=100,
+        learning_rate=0.05,
+        max_depth=2,
+        loss="huber",
+        random_state=42,
+    )
+    model.fit(x_train, y_train)
+
+    history = list(train.to_numpy(dtype=float))
+    last_date = train.index[-1]
+    predictions = []
+
+    for step in range(1, horizon + 1):
+        forecast_date = last_date + pd.offsets.MonthBegin(step)
+        features = np.asarray(
+            [
+                [
+                    history[-1],
+                    history[-2],
+                    history[-3],
+                    history[-12],
+                    float(np.mean(history[-3:])),
+                    float(np.mean(history[-6:])),
+                    float(np.sin(2 * np.pi * forecast_date.month / 12)),
+                    float(np.cos(2 * np.pi * forecast_date.month / 12)),
+                ]
+            ],
+            dtype=float,
+        )
+        prediction = max(0.0, float(model.predict(features)[0]))
+        predictions.append(prediction)
+        history.append(prediction)
+
+    return np.asarray(predictions, dtype=float)
+
+
 def rolling_origin_backtest(
     series: pd.Series,
     min_train: int = 24,
@@ -124,6 +198,7 @@ def rolling_origin_backtest(
             simple_exponential_smoothing_forecast(train, h)
         ),
         "sarima_110_100_12": lambda train, h: sarima_forecast(train, h),
+        "gradient_boosting": lambda train, h: gradient_boosting_forecast(train, h),
     }
 
     for origin in range(min_train, len(series)):
