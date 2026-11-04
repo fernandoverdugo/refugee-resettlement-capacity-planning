@@ -81,12 +81,54 @@
     th:first-child, td:first-child { text-align: left; }
     th { color: #526175; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
     .status { margin-top: 14px; min-height: 22px; color: #637083; }
+    .help { font-size: 12px; line-height: 1.4; color: #6a7789; font-weight: 400; }
+    details.guide {
+      background: white;
+      border: 1px solid #dfe5ec;
+      border-radius: 14px;
+      margin: 0 0 22px;
+      box-shadow: 0 8px 28px rgba(35, 48, 68, 0.04);
+    }
+    details.guide summary {
+      cursor: pointer;
+      padding: 16px 20px;
+      font-weight: 750;
+    }
+    .guide-body { padding: 0 20px 20px; }
+    .guide-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .guide-step {
+      background: #f8fafc;
+      border: 1px solid #e2e8ef;
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .guide-step strong { display: block; margin-bottom: 5px; }
+    .glossary {
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 1px solid #e6ebf0;
+    }
+    .glossary dl {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 8px 14px;
+      margin: 10px 0 0;
+    }
+    .glossary dt { font-weight: 700; }
+    .glossary dd { margin: 0; color: #637083; }
     .error { color: #9f2f2f; }
     .hidden { display: none; }
     footer { margin-top: 24px; font-size: 13px; color: #6a7789; }
     @media (max-width: 820px) {
       .layout { grid-template-columns: 1fr; }
       .cards { grid-template-columns: 1fr; }
+      .guide-grid { grid-template-columns: 1fr; }
+      .glossary dl { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -101,42 +143,85 @@
     This tool is for service-resource planning. It does not recommend refugee placement or make individual-level decisions. Staffing and cost inputs are hypothetical unless replaced with validated operational data.
   </div>
 
+  <details class="guide" open>
+    <summary>How to use this planner</summary>
+    <div class="guide-body">
+      <p class="muted">Start with the loaded defaults, then change one or two assumptions to see how staffing, budget, and demand affect service coverage.</p>
+      <div class="guide-grid">
+        <div class="guide-step">
+          <strong>1. Set expected demand</strong>
+          Use the reference monthly demand as the starting point. The lower and higher multipliers automatically create alternative demand scenarios around it.
+        </div>
+        <div class="guide-step">
+          <strong>2. Set available capacity</strong>
+          Enter staffing, caseload, utilization, and budget assumptions. These define how much service capacity is available each month.
+        </div>
+        <div class="guide-step">
+          <strong>3. Compare scenarios</strong>
+          Run the planner and compare total demand, unmet demand, coverage, staffing use, cost, and which constraints become binding.
+        </div>
+      </div>
+      <div class="glossary">
+        <strong>Quick glossary</strong>
+        <dl>
+          <dt>FTE</dt><dd>Full-time equivalent. One FTE represents the workload capacity of one full-time staff position.</dd>
+          <dt>Horizon</dt><dd>How many future months the planner evaluates.</dd>
+          <dt>Demand</dt><dd>The number of cases assumed to require service during the planning period.</dd>
+          <dt>Coverage</dt><dd>The share of demand that available resources can serve. 100% means all modeled demand can be served.</dd>
+          <dt>Utilization</dt><dd>The share of theoretical staff capacity assumed to be usable. For example, 0.85 means 85%.</dd>
+          <dt>Binding constraint</dt><dd>A limit that is fully used and prevents the model from serving more demand, such as the staffing budget or total FTE available.</dd>
+        </dl>
+      </div>
+    </div>
+  </details>
+
   <div class="layout">
     <section class="panel">
       <h2>Planning assumptions</h2>
       <form id="planner">
         <label class="wide">Reference monthly demand
           <input id="reference_monthly_demand" type="number" min="0" step="1" placeholder="Loading validated default…">
+          <span class="help">Starting monthly case volume. By default this comes from the latest validated national arrival observation.</span>
         </label>
         <label>Horizon (months)
           <input id="horizon_months" type="number" min="1" max="24" step="1" value="6">
+          <span class="help">How many future months to evaluate.</span>
         </label>
         <label>Total FTE
           <input id="total_fte" type="number" min="0" step="0.1" value="8">
+          <span class="help">Total full-time-equivalent staffing capacity available.</span>
         </label>
         <label>Lower multiplier
           <input id="lower_multiplier" type="number" min="0" step="0.05" value="0.5">
+          <span class="help">Scales reference demand for the lower-demand scenario. 0.5 = 50% of baseline.</span>
         </label>
         <label>Higher multiplier
           <input id="higher_multiplier" type="number" min="0" step="0.05" value="1.5">
+          <span class="help">Scales reference demand for the higher-demand scenario. 1.5 = 150% of baseline.</span>
         </label>
         <label>Cases per FTE
           <input id="monthly_caseload_per_fte" type="number" min="0" step="1" value="30">
+          <span class="help">Maximum monthly cases one full-time-equivalent staff position could handle before utilization is applied.</span>
         </label>
         <label>Utilization rate
           <input id="utilization_rate" type="number" min="0" max="1" step="0.01" value="0.85">
+          <span class="help">Usable share of theoretical capacity. 0.85 means 85%.</span>
         </label>
         <label>Monthly cost / FTE
           <input id="monthly_cost_per_fte" type="number" min="0" step="100" value="7500">
+          <span class="help">Hypothetical monthly staffing cost for one FTE.</span>
         </label>
         <label>Monthly budget
           <input id="monthly_budget" type="number" min="0" step="1000" value="60000">
+          <span class="help">Maximum staffing amount the optimizer may spend each month.</span>
         </label>
         <label>State ceiling multiplier
           <input id="ceiling_multiplier" type="number" min="0" step="0.1" value="1.5">
+          <span class="help">Limits how much staffing can be assigned to a state relative to its historical planning share.</span>
         </label>
         <label>Minimum coverage (0–1)
           <input id="minimum_coverage" type="number" min="0" max="1" step="0.05" value="0">
+          <span class="help">Required minimum share of demand served in every state. 0.8 means at least 80%.</span>
         </label>
         <button id="run" type="submit" disabled>Run planning scenario</button>
       </form>
@@ -151,6 +236,9 @@
           <div class="card"><span>Planning horizon</span><strong id="horizon"></strong><small class="muted">months</small></div>
           <div class="card"><span>Baseline demand</span><strong id="baseline-demand"></strong><small class="muted">total cases</small></div>
           <div class="card"><span>Higher unmet demand</span><strong id="higher-unmet"></strong><small class="muted">total cases</small></div>
+        </div>
+        <div class="notice" style="margin: 0 0 16px;">
+          <strong>Reading the results:</strong> “Unmet” is demand the modeled resources cannot serve. “Budget bind” or “FTE bind” shows how many months that limit is fully used.
         </div>
         <div style="overflow-x:auto">
           <table>
