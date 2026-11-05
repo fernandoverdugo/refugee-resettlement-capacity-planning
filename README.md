@@ -8,7 +8,9 @@ A reproducible decision-support platform for forecasting refugee-arrival demand,
 
 **Interactive planner:** https://refugee-resettlement-capacity-planner.onrender.com
 
-The deployed application exposes the browser-based planner at the root URL, FastAPI documentation at `/docs`, and a health endpoint at `/health`.
+The deployed planner lets users adjust demand, staffing, caseload, utilization, budget, state ceilings, and minimum coverage through synchronized sliders and exact numeric inputs. It provides live capacity feedback before optimization, then compares lower, baseline, and higher scenarios with coverage, unmet demand, cost, and binding-constraint diagnostics.
+
+FastAPI documentation is available at `/docs`, with service health at `/health`.
 
 ## What the project does
 
@@ -19,7 +21,7 @@ The deployed application exposes the browser-based planner at the root URL, Fast
 - Evaluates staffing capacity, service coverage, surplus capacity, and unmet demand.
 - Allocates a limited staffing pool across state planning units with max-min fair linear programming.
 - Adds budget, FTE, state-ceiling, and minimum-coverage constraints.
-- Exposes the pipeline through FastAPI and an interactive browser-based planning interface.
+- Exposes the pipeline through FastAPI and an interactive scenario-planning interface.
 - Packages the application with Docker and validates the production image in GitHub Actions.
 
 ## Key findings
@@ -42,16 +44,13 @@ Under the default hypothetical service assumptions — 8 FTE, 30 cases per FTE p
 
 ### Refugee Processing Center
 
-The ingestion layer handles:
-
-- **FY2012–FY2020:** state-level fiscal-year totals from legacy Excel files.
-- **FY2021–present:** monthly information from PDF reports where the source can be reconciled reliably.
+The ingestion layer preserves the limits of each source format rather than inventing unavailable detail.
 
 Current validated analytical grains include:
 
 ```text
 state × fiscal year
-national × calendar month
+national × calendar month (FY2021–FY2025)
 state × calendar month (FY2024 fully reconciled)
 ```
 
@@ -82,7 +81,7 @@ constrained fair allocation
       ↓
 FastAPI
       ↓
-interactive planning interface
+interactive scenario planner
 ```
 
 ### Forecasting
@@ -120,6 +119,16 @@ Scenario summaries also identify how many months the budget or FTE constraint is
 See `docs/OPTIMIZATION.md` and `docs/CONSTRAINED_OPTIMIZATION.md`.
 
 ## Application
+
+The browser interface is designed for scenario exploration rather than technical model configuration.
+
+Users can:
+
+- drag sliders for quick changes while retaining exact numeric entry
+- see theoretical and budget-supported monthly capacity before running the optimizer
+- view a plain-language capacity-pressure state
+- compare scenario coverage with color-coded progress bars
+- identify repeated budget or FTE constraints
 
 Run locally:
 
