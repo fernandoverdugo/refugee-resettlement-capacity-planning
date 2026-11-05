@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The web interface provides a simple front end for the decision-support API. It is intentionally lightweight so the full application can run from the repository with one server process.
+The web interface provides a lightweight front end for the decision-support API. It is designed for scenario exploration: users can change demand, staffing, budget, and coverage assumptions, see immediate capacity feedback, then run the full constrained optimization.
 
 ## Run locally
 
@@ -30,7 +30,27 @@ The interface lets users change:
 - state staffing-ceiling multiplier
 - minimum service coverage
 
-Each run sends those assumptions to `POST /v1/plan`.
+Exploratory assumptions use synchronized sliders and exact numeric inputs. Dragging a slider updates the numeric field, while typed values update the slider range and display.
+
+Each full run sends the current assumptions to `POST /v1/plan`.
+
+## Live capacity feedback
+
+Before the optimization is run, the interface calculates:
+
+```text
+theoretical monthly capacity
+= total FTE × monthly cases per FTE × utilization
+```
+
+It also estimates the staffing level supported by the entered monthly budget and displays a plain-language capacity-pressure state:
+
+- Balanced
+- Approaching capacity
+- Capacity constrained
+- Severely constrained
+
+This preview is descriptive only. The optimizer still determines the actual state allocation and resulting coverage.
 
 ## Results
 
@@ -42,11 +62,20 @@ The interface displays scenario-level:
 - service coverage
 - allocated FTE-months
 - total staffing cost
+- budget-binding months
+- FTE-binding months
 
-The current front end is deliberately focused on decision support rather than visual polish. It provides a working end-to-end product surface before deployment and more advanced visualization work.
+Coverage is displayed with both a percentage and a progress bar. Semantic color is used to make capacity pressure easier to scan:
+
+- green: high coverage
+- amber: approaching capacity
+- orange: meaningful shortfall
+- red: severe shortfall
+
+Binding-constraint counts also receive visual emphasis when a constraint binds repeatedly.
 
 ## Interpretation
 
 The interface does not recommend refugee placement. It explores hypothetical service-resource requirements after demand assumptions have been specified.
 
-Default staffing and cost values are planning assumptions, not measured agency budgets.
+Default staffing and cost values are planning assumptions, not measured agency budgets. Color states are communication aids, not policy thresholds.
