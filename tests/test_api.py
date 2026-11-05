@@ -17,6 +17,10 @@ def test_web_app_endpoint():
     assert "Estimated theoretical monthly capacity" in response.text
     assert "pressure-badge" in response.text
     assert "coverage-track" in response.text
+    assert "Demand surge" in response.text
+    assert "Reset defaults" in response.text
+    assert "Scenario takeaway" in response.text
+    assert "Highest-pressure states" in response.text
 
 
 def test_health_endpoint():
@@ -66,6 +70,11 @@ def test_plan_endpoint_runs_parameterized_pipeline():
     assert baseline["service_coverage_rate"] == 1.0
     assert "budget_binding_months" in baseline
     assert "fte_binding_months" in baseline
+    assert "state_summary" in body
+    assert len(body["state_summary"]) > 0
+    higher_states = [row for row in body["state_summary"] if row["scenario"] == "higher"]
+    assert higher_states
+    assert {"state", "total_demand", "served_demand", "unmet_demand", "service_coverage_rate"}.issubset(higher_states[0])
 
 
 def test_plan_endpoint_uses_data_default_when_reference_omitted():
