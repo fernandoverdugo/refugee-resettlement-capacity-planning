@@ -21,6 +21,9 @@ def test_web_app_endpoint():
     assert "Reset defaults" in response.text
     assert "Scenario takeaway" in response.text
     assert "Highest-pressure states" in response.text
+    assert "Download assumptions CSV" in response.text
+    assert "Download scenario CSV" in response.text
+    assert "Download state results CSV" in response.text
 
 
 def test_health_endpoint():
