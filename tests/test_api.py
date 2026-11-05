@@ -26,7 +26,9 @@ def test_web_app_endpoint():
 def test_health_endpoint():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    body = response.json()
+    assert body["status"] == "ok"
+    assert "deployment_commit" in body
 
 
 def test_defaults_endpoint_uses_validated_data():
