@@ -83,6 +83,27 @@ def _planning_basis() -> tuple[pd.Timestamp, float, pd.DataFrame, int]:
     return latest_date, latest_arrivals, state_shares, share_year
 
 
+def _summarize_states(results: pd.DataFrame) -> pd.DataFrame:
+    summary = (
+        results.groupby(["scenario", "state"], as_index=False)
+        .agg(
+            total_demand=("state_demand", "sum"),
+            served_demand=("served_demand", "sum"),
+            unmet_demand=("unmet_demand", "sum"),
+            allocated_fte_months=("allocated_fte", "sum"),
+            total_cost=("monthly_cost", "sum"),
+        )
+    )
+    summary["service_coverage_rate"] = summary["served_demand"].div(
+        summary["total_demand"].where(summary["total_demand"] > 0, 1.0)
+    )
+    summary.loc[summary["total_demand"] <= 0, "service_coverage_rate"] = 1.0
+    return summary.sort_values(
+        ["scenario", "unmet_demand", "total_demand"],
+        ascending=[True, False, False],
+    ).reset_index(drop=True)
+
+
 @app.get("/", include_in_schema=False)
 def web_app() -> FileResponse:
     return FileResponse(WEB_APP_PATH)
@@ -194,4 +215,5 @@ def create_plan(request: PlanningRequest) -> dict:
         "reference_end_date": future_dates[-1].strftime("%Y-%m-%d"),
         "state_share_fiscal_year": share_year,
         "scenario_summary": _records(summarize_constrained_optimization(optimized)),
+        "state_summary": _records(_summarize_states(optimized)),
     }
