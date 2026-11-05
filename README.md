@@ -8,7 +8,7 @@ A reproducible decision-support platform for forecasting refugee-arrival demand,
 
 **Interactive planner:** https://refugee-resettlement-capacity-planner.onrender.com
 
-The deployed planner lets users adjust demand, staffing, caseload, utilization, budget, state ceilings, and minimum coverage through synchronized sliders and exact numeric inputs. It provides live capacity feedback before optimization, then compares lower, baseline, and higher scenarios with coverage, unmet demand, cost, and binding-constraint diagnostics.
+The deployed planner lets users adjust demand, staffing, caseload, utilization, budget, state ceilings, and minimum coverage through synchronized sliders and exact numeric inputs. It includes scenario presets and reset-to-default controls, provides live capacity feedback before optimization, and summarizes each run with an executive takeaway, visual scenario comparison, binding-constraint diagnostics, and a state-level pressure view.
 
 FastAPI documentation is available at `/docs`, with service health at `/health`.
 
@@ -124,11 +124,14 @@ The browser interface is designed for scenario exploration rather than technical
 
 Users can:
 
+- start from validated defaults or use baseline, demand-surge, and budget-constrained presets
 - drag sliders for quick changes while retaining exact numeric entry
 - see theoretical and budget-supported monthly capacity before running the optimizer
 - view a plain-language capacity-pressure state
-- compare scenario coverage with color-coded progress bars
+- read an executive scenario takeaway after each optimization run
+- compare demand served across lower, baseline, and higher scenarios with visual bars
 - identify repeated budget or FTE constraints
+- review the highest-pressure states in the higher-demand scenario using aggregated planning results
 
 Run locally:
 
