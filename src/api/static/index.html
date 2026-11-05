@@ -169,6 +169,23 @@
     .bind-some { color: var(--amber); font-weight: 700; }
     .bind-heavy { color: var(--red); font-weight: 750; }
     .status { margin-top: 14px; min-height: 22px; color: var(--muted); }
+    .preset-bar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 2px; }
+    .preset-bar button { grid-column: auto; padding: 8px 11px; border: 1px solid var(--border); background: white; color: #43536a; font-size: 12px; }
+    .preset-bar button:hover { border-color: var(--blue); color: var(--blue); }
+    .preset-bar button.primary-preset { background: #eef4f8; color: #294c68; }
+    .executive-summary { border: 1px solid #d9e2eb; border-radius: 12px; background: #f8fbfd; padding: 14px 16px; margin-bottom: 16px; }
+    .executive-summary strong { display: block; margin-bottom: 5px; }
+    .scenario-bars { display: grid; gap: 12px; margin: 18px 0; }
+    .scenario-bar-row { display: grid; grid-template-columns: 86px 1fr 92px; gap: 10px; align-items: center; font-size: 13px; }
+    .bar-track { height: 18px; background: #edf1f5; border-radius: 999px; overflow: hidden; position: relative; }
+    .bar-demand { position: absolute; inset: 0 auto 0 0; background: #dfe6ee; border-radius: inherit; }
+    .bar-served { position: absolute; inset: 0 auto 0 0; background: var(--green); border-radius: inherit; opacity: .9; }
+    .state-pressure { margin-top: 22px; }
+    .state-list { display: grid; gap: 10px; margin-top: 12px; }
+    .state-row { display: grid; grid-template-columns: minmax(120px, 1.1fr) 2fr 90px; gap: 10px; align-items: center; font-size: 13px; }
+    .state-track { height: 10px; background: #edf1f5; border-radius: 999px; overflow: hidden; }
+    .state-fill { height: 100%; background: var(--orange); border-radius: inherit; }
+    .section-label { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 750; }
     details.guide {
       background: white;
       border: 1px solid var(--border);
@@ -240,6 +257,12 @@
     <section class="panel">
       <h2>Planning assumptions</h2>
       <form id="planner">
+        <div class="preset-bar" aria-label="Scenario presets">
+          <button type="button" class="primary-preset" data-preset="baseline">Baseline</button>
+          <button type="button" data-preset="surge">Demand surge</button>
+          <button type="button" data-preset="budget">Budget constrained</button>
+          <button type="button" id="reset-defaults">Reset defaults</button>
+        </div>
         <div class="control wide">
           <div class="control-head"><span>Reference monthly demand</span><span class="value-pill" id="reference_monthly_demand_display">—</span></div>
           <div class="control-pair">
@@ -366,6 +389,14 @@
           <div class="card" id="card-coverage"><span>Higher coverage</span><strong id="higher-coverage"></strong><small id="coverage-note" class="muted"></small></div>
           <div class="card" id="card-unmet"><span>Higher unmet demand</span><strong id="higher-unmet"></strong><small class="muted">total cases</small></div>
         </div>
+        <div class="executive-summary">
+          <strong id="executive-headline">Scenario takeaway</strong>
+          <span id="executive-text" class="muted"></span>
+        </div>
+        <div>
+          <p class="section-label">Demand served by scenario</p>
+          <div id="scenario-bars" class="scenario-bars"></div>
+        </div>
         <div class="notice" style="margin: 0 0 16px;">
           <strong>Reading the results:</strong> color indicates modeled capacity pressure. “Budget bind” or “FTE bind” shows how many months that limit is fully used.
         </div>
@@ -387,6 +418,11 @@
             <tbody id="rows"></tbody>
           </table>
         </div>
+        <div class="state-pressure">
+          <p class="section-label">Highest-pressure states · higher-demand scenario</p>
+          <p class="muted" style="margin-top:0">Aggregated planning results using the latest validated state arrival shares. This is not a state-level arrival forecast.</p>
+          <div id="state-list" class="state-list"></div>
+        </div>
       </div>
     </section>
   </div>
@@ -400,6 +436,7 @@
 const form = document.getElementById("planner");
 const statusBox = document.getElementById("status");
 const button = document.getElementById("run");
+let loadedDefaults = null;
 
 const numeric = id => Number(document.getElementById(id).value);
 const money = value => new Intl.NumberFormat("en-US", {style: "currency", currency: "USD", maximumFractionDigits: 0}).format(value);
@@ -434,6 +471,24 @@ function coverageClass(rate) {
   if (rate >= 0.50) return "caution";
   return "bad";
 }
+
+function setControlValue(id, value) {
+  const input = document.getElementById(id);
+  input.value = value;
+  input.dispatchEvent(new Event("input"));
+}
+
+function applyValues(values) {
+  Object.entries(values).forEach(([id, value]) => {
+    if (document.getElementById(id) && value !== undefined) setControlValue(id, value);
+  });
+}
+
+const presets = {
+  baseline: {},
+  surge: {higher_multiplier: 2.0, total_fte: 8, monthly_budget: 60000},
+  budget: {higher_multiplier: 1.5, total_fte: 8, monthly_budget: 37500}
+};
 
 function bindClass(count, months) {
   if (!count) return "bind-none";
@@ -509,6 +564,7 @@ async function loadDefaults() {
       }
     }
 
+    loadedDefaults = defaults;
     statusBox.textContent = `Defaults loaded from ${defaults.reference_observation_date}; state shares use FY${defaults.state_share_fiscal_year}.`;
     button.disabled = false;
   } catch (error) {
@@ -516,6 +572,23 @@ async function loadDefaults() {
     statusBox.textContent = error.message;
   }
 }
+
+document.querySelectorAll("[data-preset]").forEach(presetButton => {
+  presetButton.addEventListener("click", () => {
+    if (!loadedDefaults) return;
+    applyValues(loadedDefaults);
+    applyValues(presets[presetButton.dataset.preset] || {});
+    statusBox.className = "status";
+    statusBox.textContent = `${presetButton.textContent} assumptions loaded. Run the planner to compare scenarios.`;
+  });
+});
+
+document.getElementById("reset-defaults").addEventListener("click", () => {
+  if (!loadedDefaults) return;
+  applyValues(loadedDefaults);
+  statusBox.className = "status";
+  statusBox.textContent = "Validated defaults restored.";
+});
 
 loadDefaults();
 
@@ -566,6 +639,51 @@ form.addEventListener("submit", async event => {
     document.getElementById("card-demand").className = "card";
     const notes = {good: "Capacity is broadly sufficient", warn: "Capacity is getting tight", caution: "Meaningful capacity shortfall", bad: "Severe capacity shortfall"};
     document.getElementById("coverage-note").textContent = notes[coverageState];
+
+    const executiveHeadline = document.getElementById("executive-headline");
+    const executiveText = document.getElementById("executive-text");
+    const binding = [];
+    if (higher.budget_binding_months > 0) binding.push(`budget binds in ${higher.budget_binding_months} of ${higher.months} months`);
+    if (higher.fte_binding_months > 0) binding.push(`FTE binds in ${higher.fte_binding_months} of ${higher.months} months`);
+    if (higher.unmet_demand <= 0) {
+      executiveHeadline.textContent = "Current capacity covers the higher-demand scenario";
+      executiveText.textContent = `Modeled coverage is ${percent(higher.service_coverage_rate)} with no unmet demand${binding.length ? `; however, ${binding.join(" and ")}.` : "."}`;
+    } else {
+      executiveHeadline.textContent = "Higher demand exceeds modeled service capacity";
+      executiveText.textContent = `${number(higher.unmet_demand)} cases are unmet over ${higher.months} months, with ${percent(higher.service_coverage_rate)} coverage${binding.length ? `; ${binding.join(" and ")}.` : "."}`;
+    }
+
+    const maxDemand = Math.max(...results.map(row => row.total_demand), 1);
+    const scenarioBars = document.getElementById("scenario-bars");
+    scenarioBars.innerHTML = results.map(row => {
+      const demandWidth = Math.max(1, row.total_demand / maxDemand * 100);
+      const servedWidth = Math.max(0, row.served_demand / maxDemand * 100);
+      return `
+        <div class="scenario-bar-row">
+          <strong>${row.scenario}</strong>
+          <div class="bar-track" title="${number(row.served_demand)} of ${number(row.total_demand)} cases served">
+            <div class="bar-demand" style="width:${demandWidth}%"></div>
+            <div class="bar-served" style="width:${servedWidth}%"></div>
+          </div>
+          <span>${percent(row.service_coverage_rate)}</span>
+        </div>
+      `;
+    }).join("");
+
+    const higherStates = (data.state_summary || [])
+      .filter(row => row.scenario === "higher")
+      .sort((a, b) => b.unmet_demand - a.unmet_demand || b.total_demand - a.total_demand)
+      .slice(0, 8);
+    const maxStateUnmet = Math.max(...higherStates.map(row => row.unmet_demand), 1);
+    document.getElementById("state-list").innerHTML = higherStates.map(row => `
+      <div class="state-row">
+        <strong>${row.state}</strong>
+        <div class="state-track" title="${number(row.unmet_demand)} unmet cases">
+          <div class="state-fill" style="width:${Math.max(0, row.unmet_demand / maxStateUnmet * 100)}%"></div>
+        </div>
+        <span>${number(row.unmet_demand)} unmet</span>
+      </div>
+    `).join("");
 
     const rows = document.getElementById("rows");
     rows.innerHTML = "";
