@@ -83,6 +83,15 @@ No Census API key is required for the deployed planner because the live service 
 
 This catches missing files, dependency problems, and Docker build regressions before deployment.
 
+`.github/workflows/live-deployment-smoke.yml` then validates the public Render service after a successful Docker workflow. The smoke test:
+
+- waits for the public `/health` endpoint to report the exact Git commit that triggered validation;
+- confirms the planner page contains the current decision-support controls;
+- submits a small live `POST /v1/plan` request;
+- verifies both scenario-level and state-level results are returned.
+
+The health endpoint exposes Render's `RENDER_GIT_COMMIT` value as `deployment_commit`. This prevents a stale but otherwise healthy deployment from passing the live check.
+
 ## Deployment boundary
 
 The deployed application is a decision-support demonstration. It does not refresh public datasets at request time and does not make individual refugee-placement decisions.
