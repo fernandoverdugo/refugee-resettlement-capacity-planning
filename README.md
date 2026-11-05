@@ -40,6 +40,12 @@ That result motivates the project design: keep the empirical forecast as a bench
 
 Under the default hypothetical service assumptions — 8 FTE, 30 cases per FTE per month, 85% utilization, and a $60,000 monthly staffing budget — the six-month higher-demand scenario produces 513 cases of unmet demand and about 70.5% service coverage.
 
+### Example planning decision
+
+In the current committed default scenario, lower and baseline demand can be fully served, while the higher-demand case reaches only about **70.5% coverage** and leaves **513 cases unmet** over six months. Both the total FTE limit and staffing budget are binding in all six months.
+
+A program manager could interpret that result as a capacity-planning signal: under the higher-demand assumption, increasing only the demand forecast without changing resources is insufficient. The next scenario to test should change staffing, budget, caseload capacity, or a combination of those inputs and compare how much the coverage gap closes. The model supports that comparison; it does not prescribe which operational choice should be made.
+
 ## Data and planning grain
 
 ### Refugee Processing Center
@@ -132,6 +138,7 @@ Users can:
 - compare demand served across lower, baseline, and higher scenarios with visual bars
 - identify repeated budget or FTE constraints
 - review the highest-pressure states in the higher-demand scenario using aggregated planning results
+- export the exact assumptions, scenario summary, and full state results as CSV files
 
 Run locally:
 
@@ -164,6 +171,7 @@ The repository includes:
 - a Docker health check
 - a Render deployment blueprint
 - container-build CI
+- an exact-commit live deployment smoke test
 - separate analytical and production dependency sets
 
 See `docs/DEPLOYMENT.md`.
