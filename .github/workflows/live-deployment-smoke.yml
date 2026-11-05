@@ -1,0 +1,70 @@
+name: Live deployment smoke test
+
+on:
+  workflow_run:
+    workflows: ["Docker build"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: live-deployment-smoke
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve expected commit
+        id: expected
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "sha=$DISPATCH_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=$WORKFLOW_SHA" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait for Render to serve expected commit
+        env:
+          EXPECTED_SHA: ${{ steps.expected.outputs.sha }}
+        run: |
+          for i in {1..30}; do
+            echo "Checking deployment ($i/30)..."
+            if curl --fail --silent https://refugee-resettlement-capacity-planner.onrender.com/health > /tmp/health.json; then
+              if python - <<'PY'
+          import json
+          import os
+
+          with open("/tmp/health.json") as handle:
+              health = json.load(handle)
+
+          expected = os.environ["EXPECTED_SHA"]
+          actual = health.get("deployment_commit")
+          print(f"Expected: {expected}")
+          print(f"Live:     {actual}")
+          raise SystemExit(0 if health.get("status") == "ok" and actual == expected else 1)
+          PY
+              then
+                echo "Render is serving the expected commit."
+                break
+              fi
+            fi
+
+            if [ "$i" -eq 30 ]; then
+              echo "Render did not serve the expected commit within the validation window."
+              exit 1
+            fi
+            sleep 20
+          done
+
+      - name: Verify live planner contract
+        run: |
+          curl --fail --silent https://refugee-resettlement-capacity-planner.onrender.com/             | grep -q "Demand surge"
+
+          curl --fail --silent https://refugee-resettlement-capacity-planner.onrender.com/             | grep -q "Highest-pressure states"
+
+          curl --fail --silent             -H "Content-Type: application/json"             -d '{"reference_monthly_demand":100,"horizon_months":1}'             https://refugee-resettlement-capacity-planner.onrender.com/v1/plan             | python -c 'import json,sys; d=json.load(sys.stdin); assert len(d["scenario_summary"])==3; assert d["state_summary"]'
