@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -27,7 +28,7 @@ WEB_APP_PATH = Path(__file__).resolve().parent / "static" / "index.html"
 
 app = FastAPI(
     title="Refugee Resettlement Capacity Planning API",
-    version="0.1.0",
+    version="0.2.0",
     description=(
         "Decision-support API for refugee-arrival forecasting benchmarks, "
         "planning scenarios, service capacity, and resource optimization."
@@ -115,6 +116,7 @@ def health() -> dict:
         "status": "ok",
         "service": "refugee-resettlement-capacity-planning",
         "version": app.version,
+        "deployment_commit": os.environ.get("RENDER_GIT_COMMIT"),
     }
 
 
