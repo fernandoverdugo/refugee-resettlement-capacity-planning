@@ -23,7 +23,7 @@ def main() -> None:
     state_month = pd.read_csv(STATE_MONTH_PATH)
     scenarios = pd.read_csv(SCENARIO_PATH)
 
-    state_shares = build_state_shares(state_month, fiscal_year=2024)
+    state_shares = build_state_shares(state_month)
     state_scenarios = allocate_scenario_demand_to_states(
         scenarios,
         state_shares,
