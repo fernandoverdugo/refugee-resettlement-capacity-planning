@@ -42,11 +42,32 @@ jobs:
           with open("/tmp/health.json") as handle:
               health = json.load(handle)
 
+          import urllib.request
+
           expected = os.environ["EXPECTED_SHA"]
           actual = health.get("deployment_commit")
-          print(f"Expected: {expected}")
-          print(f"Live:     {actual}")
-          raise SystemExit(0 if health.get("status") == "ok" and actual == expected else 1)
+          print(f"Expected validated commit: {expected}")
+          print(f"Live commit:               {actual}")
+
+          if health.get("status") != "ok" or not actual:
+              raise SystemExit(1)
+          if actual == expected:
+              raise SystemExit(0)
+
+          compare_url = (
+              "https://api.github.com/repos/fernandoverdugo/"
+              f"refugee-resettlement-capacity-planning/compare/{expected}...{actual}"
+          )
+          try:
+              with urllib.request.urlopen(compare_url, timeout=15) as response:
+                  comparison = json.load(response)
+          except Exception as exc:
+              print(f"Could not compare commits: {exc}")
+              raise SystemExit(1)
+
+          status = comparison.get("status")
+          print(f"GitHub comparison status:  {status}")
+          raise SystemExit(0 if status in {"ahead", "identical"} else 1)
           PY
               then
                 echo "Render is serving the expected commit."
