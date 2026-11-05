@@ -13,6 +13,10 @@ def test_web_app_endpoint():
     assert "How to use this planner" in response.text
     assert "Full-time equivalent" in response.text
     assert "Binding constraint" in response.text
+    assert 'type="range"' in response.text
+    assert "Estimated theoretical monthly capacity" in response.text
+    assert "pressure-badge" in response.text
+    assert "coverage-track" in response.text
 
 
 def test_health_endpoint():
