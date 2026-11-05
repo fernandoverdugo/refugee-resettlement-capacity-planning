@@ -186,6 +186,9 @@
     .state-track { height: 10px; background: #edf1f5; border-radius: 999px; overflow: hidden; }
     .state-fill { height: 100%; background: var(--orange); border-radius: inherit; }
     .section-label { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 750; }
+    .export-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+    .export-bar button { grid-column: auto; padding: 8px 11px; border: 1px solid var(--border); background: white; color: #43536a; font-size: 12px; }
+    .export-bar button:hover { border-color: var(--blue); color: var(--blue); }
     details.guide {
       background: white;
       border: 1px solid var(--border);
@@ -393,6 +396,11 @@
           <strong id="executive-headline">Scenario takeaway</strong>
           <span id="executive-text" class="muted"></span>
         </div>
+        <div class="export-bar" aria-label="Download planning results">
+          <button type="button" id="download-assumptions">Download assumptions CSV</button>
+          <button type="button" id="download-scenarios">Download scenario CSV</button>
+          <button type="button" id="download-states">Download state results CSV</button>
+        </div>
         <div>
           <p class="section-label">Demand served by scenario</p>
           <div id="scenario-bars" class="scenario-bars"></div>
@@ -437,6 +445,7 @@ const form = document.getElementById("planner");
 const statusBox = document.getElementById("status");
 const button = document.getElementById("run");
 let loadedDefaults = null;
+let lastPlanData = null;
 
 const numeric = id => Number(document.getElementById(id).value);
 const money = value => new Intl.NumberFormat("en-US", {style: "currency", currency: "USD", maximumFractionDigits: 0}).format(value);
@@ -470,6 +479,48 @@ function coverageClass(rate) {
   if (rate >= 0.75) return "warn";
   if (rate >= 0.50) return "caution";
   return "bad";
+}
+
+function csvValue(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function rowsToCsv(rows) {
+  if (!rows.length) return "";
+  const columns = [...new Set(rows.flatMap(row => Object.keys(row)))];
+  const header = columns.map(csvValue).join(",");
+  const body = rows.map(row => columns.map(column => csvValue(row[column])).join(",")).join("\n");
+  return `${header}\n${body}\n`;
+}
+
+function downloadCsv(filename, rows) {
+  const csv = rowsToCsv(rows);
+  if (!csv) return;
+  const blob = new Blob([csv], {type: "text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function assumptionRows(data) {
+  if (!data) return [];
+  const rows = Object.entries(data.assumptions || {}).map(([assumption, value]) => ({
+    assumption,
+    value
+  }));
+  rows.push(
+    {assumption: "reference_observation_date", value: data.reference_observation_date},
+    {assumption: "reference_start_date", value: data.reference_start_date},
+    {assumption: "reference_end_date", value: data.reference_end_date},
+    {assumption: "state_share_fiscal_year", value: data.state_share_fiscal_year}
+  );
+  return rows;
 }
 
 function setControlValue(id, value) {
@@ -590,6 +641,16 @@ document.getElementById("reset-defaults").addEventListener("click", () => {
   statusBox.textContent = "Validated defaults restored.";
 });
 
+document.getElementById("download-assumptions").addEventListener("click", () => {
+  downloadCsv("capacity-planner-assumptions.csv", assumptionRows(lastPlanData));
+});
+document.getElementById("download-scenarios").addEventListener("click", () => {
+  downloadCsv("capacity-planner-scenarios.csv", lastPlanData?.scenario_summary || []);
+});
+document.getElementById("download-states").addEventListener("click", () => {
+  downloadCsv("capacity-planner-state-results.csv", lastPlanData?.state_summary || []);
+});
+
 loadDefaults();
 
 form.addEventListener("submit", async event => {
@@ -622,6 +683,7 @@ form.addEventListener("submit", async event => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || "Planning request failed.");
 
+    lastPlanData = data;
     const results = data.scenario_summary;
     const baseline = results.find(row => row.scenario === "baseline");
     const higher = results.find(row => row.scenario === "higher");
