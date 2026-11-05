@@ -14,6 +14,7 @@ on:
       - "analysis/**"
       - "data/processed/**"
       - ".github/workflows/docker-build.yml"
+      - ".github/workflows/live-deployment-smoke.yml"
   pull_request:
     paths:
       - "Dockerfile"
