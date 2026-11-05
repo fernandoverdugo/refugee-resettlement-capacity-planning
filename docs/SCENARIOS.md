@@ -2,38 +2,36 @@
 
 ## Purpose
 
-The scenario layer separates empirical forecasting from planning assumptions.
+The scenario layer separates empirical forecasting from policy-sensitive planning assumptions.
 
-The forecasting benchmark shows that the national refugee-arrival series is affected by abrupt policy-driven level shifts that historical models cannot reliably anticipate. Rather than hiding those assumptions inside a more complicated forecasting algorithm, the planning system keeps them explicit.
+The national arrival series contains abrupt level shifts that historical models cannot reliably anticipate. Rather than hiding those assumptions inside a more complicated forecast, the platform keeps them explicit and user-configurable.
 
 ## Reference forecast
 
-The initial reference forecast uses the strongest overall rolling-origin benchmark: the naive forecast.
+The default reference uses the strongest overall rolling-origin benchmark: the naive forecast.
 
-For the current national series, the most recent observed monthly arrival count is carried forward across the planning horizon. This reference can later be replaced by another validated model without changing the scenario engine.
+The most recent validated national monthly arrival count is carried forward across the selected horizon. The API and web planner can override that reference value without changing the underlying scenario engine.
 
 ## Default scenarios
 
-The first scenario set applies transparent multipliers to the reference forecast:
-
 | Scenario | Multiplier | Interpretation |
 | --- | ---: | --- |
-| Lower | 0.50 | Demand is 50% below the reference forecast |
-| Baseline | 1.00 | Demand follows the reference forecast |
-| Higher | 1.50 | Demand is 50% above the reference forecast |
+| Lower | 0.50 | 50% of reference demand |
+| Baseline | 1.00 | reference demand |
+| Higher | 1.50 | 150% of reference demand |
 
-These are planning assumptions, not probability statements. They are intentionally simple and configurable.
+These are planning assumptions, not probability statements.
 
-## Why explicit scenarios
+## How scenarios are used
 
-This design allows the platform to answer questions such as:
+The scenario layer feeds both the fixed-capacity benchmark and the constrained allocation model. It supports questions such as:
 
-- What staffing level is needed if arrivals remain near the current baseline?
-- How much unmet service demand would occur under a 50% increase?
-- How much capacity could be released if demand falls by half?
-- How sensitive are resource-allocation recommendations to the demand assumption?
+- What happens if arrivals rise above the current reference?
+- How much unmet demand appears under current staffing?
+- How sensitive are staffing and funding requirements to the demand assumption?
+- How does the fair allocation change when demand changes?
 
-The assumptions remain visible to the user and can be changed independently of the underlying forecast.
+The deployed planner exposes these multipliers as interactive controls.
 
 ## Outputs
 
@@ -43,7 +41,7 @@ Run:
 python scripts/build_demand_scenarios.py
 ```
 
-The script creates:
+The script generates:
 
 ```text
 analysis/demand_reference_forecast.csv
@@ -51,8 +49,4 @@ analysis/demand_scenarios.csv
 analysis/demand_scenario_summary.csv
 ```
 
-The default planning horizon is six months.
-
-## Next step
-
-The scenario outputs are designed to feed the capacity and optimization layers. The next milestone is to combine scenario demand with service-capacity assumptions such as caseload limits, staffing levels, and available funding.
+The default scripted planning horizon is six months; the API and interactive planner allow horizons from 1 to 24 months.
