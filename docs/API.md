@@ -2,27 +2,20 @@
 
 ## Purpose
 
-The API exposes the analytical pipeline without duplicating its modeling logic. Forecasting, scenario, capacity, and optimization functions remain in their existing modules; FastAPI provides a small interface for applications and external clients.
+The FastAPI layer exposes the forecasting, scenario, capacity, and optimization pipeline without duplicating modeling logic. It powers both the interactive planner and external programmatic access.
 
 ## Run locally
 
-Install dependencies:
-
 ```bash
 python -m pip install -r requirements.txt
-```
-
-Start the service:
-
-```bash
 uvicorn src.api.app:app --reload
 ```
 
-FastAPI then provides interactive OpenAPI documentation at:
+The application then provides:
 
-```text
-/docs
-```
+- `/` — interactive planner
+- `/docs` — OpenAPI documentation
+- `/health` — service health
 
 ## Endpoints
 
@@ -32,11 +25,11 @@ Returns service status and API version.
 
 ### `GET /v1/defaults`
 
-Returns application defaults derived from committed validated data, including the latest national monthly arrival value and the latest reconciled state-share fiscal year.
+Returns application defaults derived from committed validated data, including the latest national monthly arrival value and latest reconciled state-share fiscal year.
 
 ### `GET /v1/forecast/benchmark`
 
-Returns the committed rolling-origin forecast benchmark table.
+Returns the committed rolling-origin forecast benchmark summary.
 
 ### `GET /v1/scenarios`
 
@@ -44,7 +37,7 @@ Returns the default lower, baseline, and higher demand scenario summary.
 
 ### `GET /v1/capacity`
 
-Returns the default service-capacity evaluation.
+Returns the default fixed-capacity evaluation.
 
 ### `GET /v1/optimization`
 
@@ -54,7 +47,7 @@ Returns the default constrained-optimization summary.
 
 Runs the planning pipeline with user-specified assumptions.
 
-Example request:
+Example:
 
 ```json
 {
@@ -73,23 +66,20 @@ Example request:
 }
 ```
 
-The response includes the submitted assumptions, planning horizon, and scenario-level optimization results.
-
-## Design principles
-
-- API routes orchestrate existing analytical modules rather than reimplementing them.
-- Input bounds are validated with Pydantic.
-- Infeasible optimization requests return an HTTP 422 response.
-- Analytical output files remain reproducible through the repository scripts.
-- The API describes hypothetical service-resource planning, not refugee placement recommendations.
-
-## Next step
-
-The API is intended to support the interactive decision-support interface. The front end can use `POST /v1/plan` to let users adjust assumptions and immediately compare coverage, unmet demand, staffing use, and cost across scenarios.
-
+The response includes submitted assumptions, planning dates, the state-share fiscal year, and scenario-level optimization results.
 
 ## Data-driven defaults
 
-`reference_monthly_demand` is optional in `POST /v1/plan`. When omitted, the API uses the latest validated value in `data/processed/rpc_national_month.csv`.
+`reference_monthly_demand` is optional. When omitted, the API uses the latest validated value in `data/processed/rpc_national_month.csv`.
 
-The state-share year is selected from the latest fiscal year present in the validated state-month panel rather than being hard-coded in the route.
+State shares are selected from the latest fiscal year present in the validated state-month panel rather than hard-coded in the API.
+
+## Design principles
+
+- API routes orchestrate existing analytical modules.
+- Pydantic validates input bounds.
+- Infeasible optimization requests return HTTP 422.
+- Analytical outputs remain reproducible through repository scripts.
+- The API describes service-resource planning, not refugee-placement recommendations.
+
+The deployed web interface uses `POST /v1/plan` to compare coverage, unmet demand, staffing use, cost, and binding constraints across user-defined scenarios.
